@@ -3,49 +3,47 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const ThemeContext = createContext();
 
-// Define your custom themes here
-const customThemes = [
-  'light',
-  'dark',
-  'blue-sky',
-  'forest-green',
-  'purple-haze',
-  'sunset-orange',
-  'ocean-blue',
-  'monochrome',
-  'high-contrast',
-  'retro',
-];
-
 export const ThemeProvider = ({ children }) => {
-  const [theme, setTheme] = useState(() => {
-    // Get theme from localStorage or default to 'dark'
-    const storedTheme = localStorage.getItem('app-theme');
-    return customThemes.includes(storedTheme) ? storedTheme : 'dark'; // Default to 'dark' if stored theme is invalid
-  });
+  const [theme, setTheme] = useState('light');
+  const [systemTheme, setSystemTheme] = useState(null);
 
+  const themes = ['light', 'dark', 'blue', 'green', 'purple'];
+
+  // Check system preference
   useEffect(() => {
-    const htmlElement = document.documentElement;
-    // Remove all existing theme classes before adding the new one
-    customThemes.forEach(t => {
-      htmlElement.classList.remove(`theme-${t}`);
-    });
-    // Add the new theme class
-    htmlElement.classList.add(`theme-${theme}`);
-    // Save theme preference to localStorage
-    localStorage.setItem('app-theme', theme);
-  }, [theme]); // Re-run effect when theme changes
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleSystemThemeChange = (e) => {
+      setSystemTheme(e.matches ? 'dark' : 'light');
+    };
+    
+    mediaQuery.addEventListener('change', handleSystemThemeChange);
+    setSystemTheme(mediaQuery.matches ? 'dark' : 'light');
+    
+    return () => mediaQuery.removeEventListener('change', handleSystemThemeChange);
+  }, []);
+
+  // Load saved theme from localStorage
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme && themes.includes(savedTheme)) {
+      setTheme(savedTheme);
+    } else if (systemTheme) {
+      setTheme(systemTheme);
+    }
+  }, [systemTheme]);
+
+  // Apply theme changes
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
 
   const toggleTheme = (newTheme) => {
-    if (customThemes.includes(newTheme)) {
-      setTheme(newTheme);
-    } else {
-      console.warn(`Attempted to set an invalid theme: ${newTheme}`);
-    }
+    setTheme(newTheme);
   };
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, customThemes }}>
+    <ThemeContext.Provider value={{ theme, toggleTheme, themes }}>
       {children}
     </ThemeContext.Provider>
   );
@@ -53,7 +51,7 @@ export const ThemeProvider = ({ children }) => {
 
 export const useTheme = () => {
   const context = useContext(ThemeContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useTheme must be used within a ThemeProvider');
   }
   return context;
