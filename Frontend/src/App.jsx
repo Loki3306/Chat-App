@@ -1,52 +1,78 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { useAuthStore } from './store/useAuthStore.js';
+import { Toast } from './components/toast.jsx';
+import { Loader } from 'lucide-react';
+
+// Import your pages and components
 import Navbar from './components/Navbar';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import SignUpPage from './pages/SignUpPage';
 import SettingsPage from './pages/SettingsPage';
 import ProfilePage from './pages/ProfilePage';
-
-import { Routes, Route, Navigate } from 'react-router-dom';
-
-import { useAuthStore } from './store/useAuthStore.js';
-import { useEffect } from 'react';
-
-import {Loader} from 'lucide-react'
+import './index.css'; 
+import {ThemeProvider} from './context/ThemeContext.jsx'; 
 
 const App = () => {
-  const { authUser, checkAuth, isCheckingAuth } = useAuthStore();
+
+  const { authUser, isCheckingAuth, checkAuth, toast, clearToast } = useAuthStore();
+  const [isToastVisible, setIsToastVisible] = useState(false);
 
   useEffect(() => {
-    checkAuth()
+    checkAuth();
   }, [checkAuth]);
 
-  if (isCheckingAuth && !authUser) 
+ 
+  useEffect(() => {
+    if (toast.message) {
+      setIsToastVisible(true);
+      const timer = setTimeout(() => {
+        setIsToastVisible(false);
+        
+        setTimeout(() => clearToast(), 500);
+      }, 4000); // 4 seconds visible
+      return () => clearTimeout(timer);
+    }
+  }, [toast, clearToast]);
+
+
+  
+  if (isCheckingAuth) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <span className="loading loading-infinity loading-xl size-24"></span>
+      <div className="flex items-center justify-center h-screen bg-gray-900">
+        <Loader className="size-16 animate-spin text-amber-400" />
       </div>
     );
-  
-
+  }
 
   return (
-    <div>
+    
+    <ThemeProvider>
+      <div className="bg-gray-900 min-h-screen ">
 
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onDismiss={() => setIsToastVisible(false)}
+          show={isToastVisible}
+        />
 
-      <Navbar />
+        <Navbar />
+        <main className="p-6">
+          <Routes>
+            <Route path='/' element={authUser ? <Navigate to='/home' /> : <Navigate to='/login' />} />
+            <Route path="/home" element={authUser ? <HomePage /> : <Navigate to='/login' />} />
+            <Route path="/profile" element={authUser ? <ProfilePage /> : <Navigate to='/login' />} />
+            <Route path="/settings" element={authUser ? <SettingsPage /> : <Navigate to='/login' />} />
+            <Route path="/signup" element={!authUser ? <SignUpPage /> : <Navigate to='/home' />} />
+            <Route path="/login" element={!authUser ? <LoginPage /> : <Navigate to='/home' />} />
+            <Route path="*" element={<Navigate to={authUser ? '/home' : '/login'} />} />
+          </Routes>
+        </main>
+      </div>
+    </ThemeProvider>
+  );
+};
 
-      <Routes>
-        <Route path="/home" element={authUser ?  <HomePage /> : <Navigate to='/login' /> } />
-        <Route path="/signup" element={!authUser ? <SignUpPage /> : <Navigate to='/home' />} />
-        <Route path="/login" element={!authUser ? <LoginPage /> : <Navigate to='/home' />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/profile" element={authUser ? <ProfilePage /> : <Navigate to='/login' />} />
-
-      </Routes>
-
-
-    </div>
-  )
-}
-
-export default App
+export default App;

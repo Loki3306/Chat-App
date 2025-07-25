@@ -6,10 +6,9 @@ import { axiosInstance } from '../lib/axios.js';
 import { useState } from 'react';
 import { MessageSquare, Eye, EyeOff, User, Mail, KeyRound, Users, Settings, Code, PenTool, Heart, Compass, Shield, AlertTriangle, CheckCircle } from 'lucide-react';
 
-// Unified Toast Component for Success Messages
+
 const SuccessToast = ({ message, onDismiss }) => {
     if (!message) return null;
-
     return (
         <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 animate-toast-in">
             <div 
@@ -23,7 +22,7 @@ const SuccessToast = ({ message, onDismiss }) => {
     );
 };
 
-// New Inline Error component for inputs
+
 const InputError = ({ message }) => {
     if (!message) return null;
     return (
@@ -33,7 +32,6 @@ const InputError = ({ message }) => {
         </div>
     );
 };
-
 
 // New Cycling Icon Component
 const CyclingIcon = () => {
@@ -47,29 +45,23 @@ const CyclingIcon = () => {
         <PenTool key="pen" className="size-10 text-amber-300" />,
         <Settings key="settings" className="size-10 text-amber-300" />,
     ];
-
     const [currentIndex, setCurrentIndex] = useState(0);
     const timerRef = useRef(null);
-
     const nextIcon = () => {
         setCurrentIndex(prevIndex => (prevIndex + 1) % icons.length);
     };
-
     const resetTimer = () => {
         clearTimeout(timerRef.current);
         timerRef.current = setTimeout(nextIcon, 3000);
     };
-
     const handleClick = () => {
         nextIcon();
         resetTimer();
     };
-
     useEffect(() => {
         resetTimer();
         return () => clearTimeout(timerRef.current);
     }, [currentIndex]);
-
     return (
         <div onClick={handleClick} className="cursor-pointer group relative w-10 h-10 flex items-center justify-center">
             {icons.map((icon, index) => (
@@ -80,7 +72,6 @@ const CyclingIcon = () => {
         </div>
     );
 };
-
 
 const GlobalGlowEffect = () => {
     const glowRef = useRef(null);
@@ -102,20 +93,21 @@ const GlobalGlowEffect = () => {
 
 
 const SignUpPage = () => {
-  // --- Your existing logic and state ---
   const [showPassword, setShowPassword] = useState(false);
+  
+  // ✅ **FIX 1: Changed 'username' to 'fullName' to match the backend**
   const [formData, setFormData] = useState({
-    username: '',
+    fullName: '',
     email: '',
     password: '',
   });
-  const [errors, setErrors] = useState({ email: '', username: '', password: '' });
+  
+  const [errors, setErrors] = useState({ email: '', fullName: '', password: '' });
   const [successToast, setSuccessToast] = useState('');
 
   const { signup, isSigningUp } = useAuthStore();
   const navigate = useNavigate();
 
-  // Effect to auto-dismiss the success toast
   useEffect(() => {
     if (successToast) {
         const timer = setTimeout(() => {
@@ -128,23 +120,23 @@ const SignUpPage = () => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
-    // Clear error for the field being edited
     if (errors[name]) {
         setErrors(prev => ({ ...prev, [name]: '' }));
     }
   };
 
   const validateForm = () => {
-    const { username, email, password } = formData;
-    const newErrors = { email: '', username: '', password: '' };
+    // ✅ **FIX 2: Validating 'fullName' instead of 'username'**
+    const { fullName, email, password } = formData;
+    const newErrors = { email: '', fullName: '', password: '' };
     let isValid = true;
 
     if (!email) {
         newErrors.email = "Email address is required.";
         isValid = false;
     }
-    if (!username) {
-        newErrors.username = "Username is required.";
+    if (!fullName) {
+        newErrors.fullName = "Full Name is required.";
         isValid = false;
     }
     if (!password) {
@@ -170,13 +162,11 @@ const SignUpPage = () => {
       }, 2000);
     } catch (err) {
       const errorMessage = err.response?.data?.error || "Sign-up failed. Please try again.";
-      // This can be a general error toast if needed, e.g., for server errors
       setErrors(prev => ({...prev, password: errorMessage}));
       console.error("Signup error:", err);
     }
   };
 
-  // --- Elegant UI Component for Left Side ---
   const ElegantAccountHeader = () => {
     return (
         <div className="relative z-10 flex flex-col items-center text-center px-8 animate-fade-in">
@@ -197,69 +187,27 @@ const SignUpPage = () => {
   return (
     <>
       <style>{`
-        @keyframes fade-in {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fade-in {
-          animation: fade-in 1s ease-out forwards;
-        }
-        @keyframes fade-in-fast {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        .animate-fade-in-fast {
-            animation: fade-in-fast 0.3s ease-out forwards;
-        }
-        @keyframes form-slide-up {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-form-slide-up {
-            animation: form-slide-up 0.7s ease-out forwards;
-        }
-        @keyframes subtle-float {
-            0% { transform: translateY(0px) scale(1); }
-            50% { transform: translateY(-4px) scale(1.02); }
-            100% { transform: translateY(0px) scale(1); }
-        }
-        .animate-subtle-float {
-            animation: subtle-float 6s ease-in-out infinite;
-        }
-        /* New Global Glow Effect */
-        .global-glow-effect {
-            content: '';
-            position: fixed;
-            inset: 0;
-            pointer-events: none;
-            background: radial-gradient(
-                600px circle at var(--mouse-x, -1000px) var(--mouse-y, -1000px),
-                rgba(252, 211, 77, 0.08),
-                transparent 70%
-            );
-            z-index: 0;
-            transition: background 0.2s ease-out;
-        }
-        /* Toast Animation */
-        @keyframes toast-in {
-            from { opacity: 0; transform: translate(-50%, 20px) scale(0.9); }
-            to { opacity: 1; transform: translate(-50%, 0) scale(1); }
-        }
-        .animate-toast-in {
-            animation: toast-in 0.5s cubic-bezier(0.21, 1.02, 0.73, 1) forwards;
-        }
+        /* ... All your existing styles remain the same ... */
+        @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fade-in 1s ease-out forwards; }
+        @keyframes fade-in-fast { from { opacity: 0; } to { opacity: 1; } }
+        .animate-fade-in-fast { animation: fade-in-fast 0.3s ease-out forwards; }
+        @keyframes form-slide-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-form-slide-up { animation: form-slide-up 0.7s ease-out forwards; }
+        @keyframes subtle-float { 0% { transform: translateY(0px) scale(1); } 50% { transform: translateY(-4px) scale(1.02); } 100% { transform: translateY(0px) scale(1); } }
+        .animate-subtle-float { animation: subtle-float 6s ease-in-out infinite; }
+        .global-glow-effect { content: ''; position: fixed; inset: 0; pointer-events: none; background: radial-gradient( 600px circle at var(--mouse-x, -1000px) var(--mouse-y, -1000px), rgba(252, 211, 77,.08), transparent 70% ); z-index: 0; transition: background .2s ease-out; }
+        @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 20px) scale(.9); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+        .animate-toast-in { animation: toast-in .5s cubic-bezier(.21, 1.02, .73, 1) forwards; }
       `}</style>
       
       <GlobalGlowEffect />
       <SuccessToast message={successToast} onDismiss={() => setSuccessToast('')} />
 
       <div className="min-h-screen flex w-full text-gray-300">
-        {/* Left Side: The elegant branding */}
         <div className="relative hidden lg:flex w-1/2 flex-col items-center justify-center bg-transparent">
           <ElegantAccountHeader />
         </div>
-
-        {/* Right Side: The redesigned sign-up form */}
         <div className="w-full lg:w-1/2 flex flex-col items-center justify-center bg-transparent p-6">
           <div className="relative z-10 w-full max-w-md">
               <div className="group p-8 space-y-6 bg-gray-800/40 border border-gray-700/50 rounded-2xl shadow-2xl backdrop-blur-md transition-all duration-300 hover:border-amber-400/40 hover:shadow-amber-500/10 animate-form-slide-up">
@@ -267,7 +215,6 @@ const SignUpPage = () => {
                   <h2 className="text-3xl font-bold text-amber-300 animate-subtle-float">Get Started</h2>
                   <p className="mt-2 text-gray-400">Enter your details to sign up.</p>
                 </div>
-
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
                     <div className="relative group/input">
@@ -279,9 +226,10 @@ const SignUpPage = () => {
                   <div>
                     <div className="relative group/input">
                       <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-500 transition-colors duration-300 group-focus-within/input:text-amber-300" />
-                      <input id="username" name="username" type="text" onChange={handleInputChange} value={formData.username} className={`w-full pl-10 pr-3 py-3 bg-gray-800/60 border rounded-lg focus:outline-none focus:ring-1 focus:shadow-[0_0_15px_rgba(252,211,77,0.1)] hover:border-gray-600 transition-all ${errors.username ? 'border-red-500/50 focus:ring-red-500/80 focus:border-red-500' : 'border-gray-700 focus:ring-amber-400/80 focus:border-amber-400'}`} placeholder="e.g., jane_doe" />
+                      {/* ✅ **FIX 3: Changed name and value to 'fullName'** */}
+                      <input id="fullName" name="fullName" type="text" onChange={handleInputChange} value={formData.fullName} className={`w-full pl-10 pr-3 py-3 bg-gray-800/60 border rounded-lg focus:outline-none focus:ring-1 focus:shadow-[0_0_15px_rgba(252,211,77,0.1)] hover:border-gray-600 transition-all ${errors.fullName ? 'border-red-500/50 focus:ring-red-500/80 focus:border-red-500' : 'border-gray-700 focus:ring-amber-400/80 focus:border-amber-400'}`} placeholder="e.g., Jane Doe" />
                     </div>
-                    <InputError message={errors.username} />
+                    <InputError message={errors.fullName} />
                   </div>
                   <div>
                     <div className="relative group/input">
@@ -299,7 +247,6 @@ const SignUpPage = () => {
                       </button>
                   </div>
                 </form>
-
                 <div className="text-center pt-4">
                   <p className="text-sm text-gray-400">
                     Already have an account?{' '}
