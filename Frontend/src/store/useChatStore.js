@@ -1,7 +1,7 @@
 import {create} from 'zustand';
 import {axiosInstance} from '../lib/axios.js';
 
-export const useChatStore = create((set) => ({
+export const useChatStore = create((set,get) => ({
     messages: [],
     users: [],
     selectedUser: null,
@@ -44,6 +44,23 @@ export const useChatStore = create((set) => ({
             set({isMessagesLoading: false});
         }
     },
+
+    sendMessage: async (userId, message) => {
+        const {selectedUser, messages} = get();
+        try {
+            const response = await axiosInstance.post(`/messages/send/${userId}`, {message});
+            set({
+                messages: [...messages, response.data],
+                selectedUser: {...selectedUser, lastMessage: response.data}, // Update lastMessage for selectedUser
+            });
+
+        } catch (error) {
+            
+        }
+
+    },
+
+    
 
     // MODIFIED: setSelectedUser to also set selectedChat
     setSelectedUser: (user) => {
