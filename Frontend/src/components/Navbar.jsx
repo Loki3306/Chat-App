@@ -1,20 +1,32 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom'; // Import useLocation
+import { Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore.js';
-import { User, Settings, LogOut, MessageSquare, Home } from 'lucide-react'; // Import Home icon
+import { User, Settings, LogOut, MessageSquare, Home } from 'lucide-react';
 
 const Navbar = () => {
   const { authUser, logout } = useAuthStore();
-  const location = useLocation(); // Get the current location
+  const location = useLocation();
 
   const handleLogout = () => {
     logout();
-    // No need to navigate here, the App.jsx router will handle the redirect
   };
+
+  // Default avatar for when no profile picture is available or image fails to load
+  const defaultUserAvatar = `data:image/svg+xml;base64,${btoa(`
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 5C13.66 5 15 6.34 15 8C15 9.66 13.66 11 12 11C10.34 11 9 9.66 9 8C9 6.34 10.34 5 12 5ZM12 19.2C9.5 19.2 7.29 17.92 6 15.96C6.03 14.07 10 12.9 12 12.9C13.99 12.9 17.97 14.07 18 15.96C16.71 17.92 14.5 19.2 12 19.2Z" fill="#9CA3AF"/>
+      </svg>
+  `)}`;
+
 
   return (
     <>
+      <script src="https://cdn.tailwindcss.com"></script>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
       <style>{`
+        body {
+            font-family: 'Inter', sans-serif;
+        }
         @keyframes shimmer {
           0% { background-position: -500%; }
           100% { background-position: 500%; }
@@ -48,12 +60,26 @@ const Navbar = () => {
                 <Home size={22} />
               </Link>
             )}
+            {/* Profile Button - Conditionally renders PFP or default User icon */}
             <Link
               to="/profile"
-              className="p-2 rounded-full text-gray-400 hover:text-amber-300 hover:bg-gray-700/50 transition-all duration-300 transform hover:scale-110"
+              className="p-1.5 rounded-full text-gray-400 hover:text-amber-300 hover:bg-gray-700/50 transition-all duration-300 transform hover:scale-110 flex items-center justify-center"
               aria-label="Profile"
             >
-              <User size={22} />
+              {/* CHANGED: authUser.profilePicUrl to authUser.profilePicture */}
+              {authUser.profilePicture ? (
+                <img
+                  src={authUser.profilePicture} // Use profilePicture from backend
+                  alt="Profile"
+                  className="size-7 rounded-full object-cover border border-gray-600 group-hover:border-amber-400 transition-all duration-300"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = defaultUserAvatar;
+                  }}
+                />
+              ) : (
+                <User size={22} />
+              )}
             </Link>
             <Link
               to="/settings"
@@ -64,7 +90,7 @@ const Navbar = () => {
             </Link>
             <button
               onClick={handleLogout}
-              className="p-2 rounded-full text-gray-700 hover:text-white hover:bg-red-900/50 transition-all duration-300 transform hover:scale-110"
+              className="p-2 rounded-full text-gray-400 hover:text-red-400 hover:bg-red-900/50 transition-all duration-300 transform hover:scale-110"
               aria-label="Logout"
             >
               <LogOut size={22} />

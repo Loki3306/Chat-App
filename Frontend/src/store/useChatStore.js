@@ -5,22 +5,36 @@ export const useChatStore = create((set) => ({
     messages: [],
     users: [],
     selectedUser: null,
+    selectedChat: null, // Ensure selectedChat is part of your state
     isUsersLoading: false,
     isMessagesLoading: false,
 
-
     fetchUsers: async () => {
         set({isUsersLoading: true});
+        console.log("useChatStore: Starting fetchUsers...");
         try {
             const response = await axiosInstance.get('/users');
+            console.log("useChatStore: API call to /users successful.");
+            console.log("useChatStore: Response data for users:", response.data);
+            
             set({users: response.data, isUsersLoading: false});
+
         } catch (error) {
-            console.error('Error fetching users:', error);
+            console.error('useChatStore: Error fetching users:', error);
+            if (error.response) {
+                console.error("useChatStore: Error response data:", error.response.data);
+                console.error("useChatStore: Error response status:", error.response.status);
+                console.error("useChatStore: Error response headers:", error.response.headers);
+            } else if (error.request) {
+                console.error("useChatStore: Error request:", error.request);
+            } else {
+                console.error("useChatStore: Error message:", error.message);
+            }
             set({isUsersLoading: false});
         }
     },
 
-    fetchMessages: async (userId) => {
+    getMessages: async (userId) => {
         set({isMessagesLoading: true});
         try {
             const response = await axiosInstance.get(`/messages/${userId}`);
@@ -31,13 +45,11 @@ export const useChatStore = create((set) => ({
         }
     },
 
-
-    //optimise later
+    // MODIFIED: setSelectedUser to also set selectedChat
     setSelectedUser: (user) => {
-        set({selectedUser: user});
+        set({
+            selectedUser: user,
+            selectedChat: user // Set selectedChat to the selected user object
+        });
     },
-
-
-
-
 }));

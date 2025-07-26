@@ -5,9 +5,11 @@ import cors from 'cors';
 
 import authRoutes from './routes/auth.route.js';
 import messageRoutes from './routes/message.route.js';
-
+import userRoutes from './routes/user.route.js';
 
 import { connectDB } from './lib/db.js';
+import { protectRoute } from './middleware/auth.protectRoute.js'; // <--- ADD THIS LINE! Assuming path is correct
+
 dotenv.config();
 
 const app=express();
@@ -25,6 +27,7 @@ app.use(cors({
 
 app.use("/api/auth", authRoutes);
 app.use("/api/messages", messageRoutes);
+app.use("/api/users", protectRoute, userRoutes); // <--- MODIFY THIS LINE: Add protectRoute middleware
 
 app.listen(PORT,()=>{
     console.log('Server is running on PORT:',PORT);

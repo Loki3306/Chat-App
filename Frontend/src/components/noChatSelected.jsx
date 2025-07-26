@@ -159,7 +159,7 @@ const NoChatSelected = () => {
                             </button>
                             <button
                                 onClick={handleBrowseChats}
-                                className="flex items-center justify-center gap-3 px-8 py-4 rounded-full font-semibold border border-gray-600 text-black hover:border-amber-400 hover:text-amber-300 hover:bg-gray-700/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-amber-400 transition-all duration-300 transform hover:scale-105 active:scale-100 shadow-md hover:shadow-lg"
+                                className="flex items-center  justify-center gap-3 px-8 py-4 rounded-full font-semibold border border-gray-600 text-black hover:border-amber-400 hover:text-amber-300 hover:bg-gray-700/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-amber-400 transition-all duration-300 transform hover:scale-105 active:scale-100 shadow-md hover:shadow-lg"
                             >
                                 <Search size={24} />
                                 Browse Existing Chats

@@ -1,14 +1,23 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useChatStore } from '../store/useChatStore.js';
 
-
-import SidebarSkeleton from '../components/skeletons/sidebarSkeleton.jsx'; // Import the new skeleton
+import Sidebar from '../components/Sidebar.jsx';
+import SidebarSkeleton from '../components/skeletons/sidebarSkeleton.jsx';
 
 import ChatContainer from '../components/chatContainer.jsx';
 import NoChatSelected from '../components/noChatSelected.jsx';
 
 const HomePage = () => {
-  const { selectedChat } = useChatStore();
+  // Get all necessary states and actions from useChatStore
+  // ADDED 'selectedUser' to destructuring here
+  const { selectedChat, users, isUsersLoading, fetchUsers, selectedUser } = useChatStore();
+
+  // Fetch users ONLY ONCE when HomePage mounts
+  // This is the ONLY place fetchUsers should be called for initial load
+  useEffect(() => {
+    console.log("HomePage: Fetching users on mount.");
+    fetchUsers();
+  }, [fetchUsers]); // fetchUsers is a stable function from Zustand, so this runs once.
 
   return (
     <>
@@ -18,31 +27,27 @@ const HomePage = () => {
         body {
             font-family: 'Inter', sans-serif;
         }
-        /* Basic styling for the overall layout */
         .main-layout {
             display: flex;
             min-height: 100vh;
             background: linear-gradient(135deg, #0f172a 0%, #1e293b 25%, #374151 50%, #1f2937 75%, #111827 100%);
-            color: #e2e8f0; /* text-gray-200 */
+            color: #e2e8f0;
         }
-        /* Add any specific styles for the sidebar or chat area if needed */
         .sidebar-area {
-            width: 20%; /* Example width, adjust as needed */
-            min-width: 250px; /* Minimum width for sidebar */
-            max-width: 350px; /* Maximum width for sidebar */
-            background-color: #1e293b; /* slate-800 */
-            border-right: 1px solid #334155; /* slate-700 */
+            width: 20%;
+            min-width: 250px;
+            max-width: 350px;
+            background-color: #1e293b;
+            border-right: 1px solid #334155;
             box-shadow: 2px 0 10px rgba(0,0,0,0.3);
             padding: 1rem;
         }
         .chat-area {
             flex-grow: 1;
-            background-color: #0f172a; /* slate-900 */
+            background-color: #0f172a;
             display: flex;
             flex-direction: column;
         }
-
-        /* Responsive adjustments */
         @media (max-width: 768px) {
             .main-layout {
                 flex-direction: column;
@@ -53,15 +58,20 @@ const HomePage = () => {
                 max-width: unset;
                 border-right: none;
                 border-bottom: 1px solid #334155;
-                padding: 0.5rem; /* Smaller padding for mobile */
+                padding: 0.5rem;
             }
         }
       `}</style>
 
       <div className="main-layout">
         <aside className="sidebar-area">
-          {/* Replaced Sidebar with SidebarSkeleton */}
-          <SidebarSkeleton />
+          {/* Pass users, selectedUser, and setSelectedUser as props to Sidebar */}
+          {isUsersLoading ? (
+            <SidebarSkeleton />
+          ) : (
+            <Sidebar users={users} selectedUser={selectedUser} setSelectedUser={useChatStore.getState().setSelectedUser} />
+            // Note: useChatStore.getState().setSelectedUser is used to pass a stable function reference.
+          )}
         </aside>
 
         <main className="chat-area">
