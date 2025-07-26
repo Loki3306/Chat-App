@@ -3,6 +3,24 @@ import { useAuthStore } from '../store/useAuthStore.js';
 import { Link } from 'react-router-dom';
 import { Camera, Loader, User, Mail, ShieldCheck, CalendarDays, Sparkles, Gamepad2, Users, Heart, Compass, Code, Shield, PenTool, Settings, Puzzle, Home, LogOut } from 'lucide-react';
 
+
+const GlobalGlowEffect = () => {
+    const glowRef = useRef(null);
+    useEffect(() => {
+        const handleMouseMove = (e) => {
+            if (!glowRef.current) return;
+            const x = e.clientX;
+            const y = e.clientY;
+            requestAnimationFrame(() => {
+                glowRef.current.style.setProperty('--mouse-x', `${x}px`);
+                glowRef.current.style.setProperty('--mouse-y', `${y}px`);
+            });
+        };
+        window.addEventListener('mousemove', handleMouseMove);
+        return () => window.removeEventListener('mousemove', handleMouseMove);
+    }, []);
+    return <div ref={glowRef} className="global-glow-effect" />;
+};
 // =======================================================================
 // NEW COMPONENT: Circuit Grid Puzzle Game
 // =======================================================================

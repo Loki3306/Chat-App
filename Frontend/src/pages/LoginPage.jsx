@@ -33,7 +33,7 @@ const InputError = ({ message }) => {
     );
 };
 
-// ✅ **FIX 1: Memoized the CyclingIcon to prevent re-renders**
+// Fixed CyclingIcon Component
 const CyclingIcon = React.memo(() => {
     const icons = [
         <MessageSquare key="msg" className="size-10 text-amber-300" />,
@@ -47,21 +47,34 @@ const CyclingIcon = React.memo(() => {
     ];
     const [currentIndex, setCurrentIndex] = useState(0);
     const timerRef = useRef(null);
+
     const nextIcon = () => {
         setCurrentIndex(prevIndex => (prevIndex + 1) % icons.length);
     };
-    const resetTimer = () => {
+
+    const startTimer = () => {
         clearTimeout(timerRef.current);
         timerRef.current = setTimeout(nextIcon, 3000);
     };
+
     const handleClick = () => {
         nextIcon();
-        resetTimer();
+        startTimer(); // Restart timer after manual click
     };
+
+    // Only start the timer once on mount
     useEffect(() => {
-        resetTimer();
+        startTimer();
         return () => clearTimeout(timerRef.current);
+    }, []); // Empty dependency array - only run once on mount
+
+    // Start new timer after each automatic transition
+    useEffect(() => {
+        if (currentIndex > 0) { // Skip the initial render
+            startTimer();
+        }
     }, [currentIndex]);
+
     return (
         <div onClick={handleClick} className="cursor-pointer group relative w-10 h-10 flex items-center justify-center">
             {icons.map((icon, index) => (
@@ -91,7 +104,7 @@ const GlobalGlowEffect = () => {
     return <div ref={glowRef} className="global-glow-effect" />;
 };
 
-// ✅ **FIX 2: Moved ElegantLoginHeader outside and memoized it**
+// Fixed ElegantLoginHeader Component
 const ElegantLoginHeader = React.memo(() => {
     return (
         <div className="relative z-10 flex flex-col items-center text-center px-8 animate-fade-in">
@@ -177,24 +190,67 @@ const LoginPage = () => {
     return (
         <>
             <style>{`
-                /* ... All your existing styles remain the same ... */
-                @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-                .animate-fade-in { animation: fade-in 1s ease-out forwards; }
-                @keyframes fade-in-fast { from { opacity: 0; } to { opacity: 1; } }
-                .animate-fade-in-fast { animation: fade-in-fast 0.3s ease-out forwards; }
-                @keyframes form-slide-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-                .animate-form-slide-up { animation: form-slide-up 0.7s ease-out forwards; }
-                @keyframes subtle-float { 0% { transform: translateY(0px) scale(1); } 50% { transform: translateY(-4px) scale(1.02); } 100% { transform: translateY(0px) scale(1); } }
-                .animate-subtle-float { animation: subtle-float 6s ease-in-out infinite; }
-                .global-glow-effect { content: ''; position: fixed; inset: 0; pointer-events: none; background: radial-gradient( 600px circle at var(--mouse-x, -1000px) var(--mouse-y, -1000px), rgba(252, 211, 77,.08), transparent 70% ); z-index: 0; transition: background .2s ease-out; }
-                @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 20px) scale(.9); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
-                .animate-toast-in { animation: toast-in .5s cubic-bezier(.21, 1.02, .73, 1) forwards; }
+                /* Reset any global input styles that might interfere */
+                input[type="email"], input[type="text"], input[type="password"] {
+                  text-indent: 0 !important;
+                }
+                button:focus {
+                  outline: none !important;
+                  box-shadow: none !important;
+                }
+
+
+                     /* Background styles */
+        .main-background {
+          background: linear-gradient(135deg, #0f172a 0%, #1e293b 25%, #374151 50%, #1f2937 75%, #111827 100%);
+          position: relative;
+          overflow: hidden;
+          z-index: 2;
+        }
+        
+            .main-background::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: 
+            radial-gradient(circle at 20% 50%, rgba(252, 211, 77, 0.1) 0%, transparent 50%),
+            radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.1) 0%, transparent 50%),
+            radial-gradient(circle at 40% 80%, rgba(34, 197, 94, 0.05) 0%, transparent 50%);
+          pointer-events: none;
+        }
+          .main-background::after {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23374151' fill-opacity='0.05'%3E%3Ccircle cx='30' cy='30' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+          pointer-events: none;
+        }
+      
+        
+            /* Animations */
+        @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fade-in 1s ease-out forwards; }
+        @keyframes fade-in-fast { from { opacity: 0; } to { opacity: 1; } }
+        .animate-fade-in-fast { animation: fade-in-fast 0.3s ease-out forwards; }
+        @keyframes form-slide-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-form-slide-up { animation: form-slide-up 0.7s ease-out forwards; }
+        @keyframes subtle-float { 0% { transform: translateY(0px) scale(1); } 50% { transform: translateY(-4px) scale(1.02); } 100% { transform: translateY(0px) scale(1); } }
+        .animate-subtle-float { animation: subtle-float 6s ease-in-out infinite; }
+        .global-glow-effect { content: ''; position: fixed; inset: 0; pointer-events: none; background: radial-gradient( 600px circle at var(--mouse-x, -1000px) var(--mouse-y, -1000px), rgba(252, 211, 77,.08), transparent 70% ); z-index: 0; transition: background .2s ease-out; }
+        @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 20px) scale(.9); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+        .animate-toast-in { animation: toast-in .5s cubic-bezier(.21, 1.02, .73, 1) forwards; }
             `}</style>
 
             <GlobalGlowEffect />
             <SuccessToast message={successToast} onDismiss={() => setSuccessToast('')} />
 
-            <div className="min-h-screen flex w-full text-gray-300">
+            <div className="min-h-screen flex w-full text-gray-300 main-background">
                 <div className="relative hidden lg:flex w-1/2 flex-col items-center justify-center bg-transparent">
                     <ElegantLoginHeader />
                 </div>
@@ -208,17 +264,44 @@ const LoginPage = () => {
                             <form onSubmit={handleSubmit} className="space-y-4">
                                 <div>
                                     <div className="relative group/input">
-                                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-500 transition-colors duration-300 group-focus-within/input:text-amber-300" />
-                                        <input id="email" name="email" type="email" onChange={handleInputChange} value={formData.email} className={`w-full pl-10 pr-3 py-3 bg-gray-800/60 border rounded-lg focus:outline-none focus:ring-1 focus:shadow-[0_0_15px_rgba(252,211,77,0.1)] hover:border-gray-600 transition-all ${errors.email ? 'border-red-500/50 focus:ring-red-500/80 focus:border-red-500' : 'border-gray-700 focus:ring-amber-400/80 focus:border-amber-400'}`} placeholder="you@example.com" />
+                                        <div className="absolute left-3 top-1/2 -translate-y-1/2 z-10 pointer-events-none">
+                                            <Mail className="h-4 w-4 text-gray-500 transition-colors duration-300 group-focus-within/input:text-amber-300" />
+                                        </div>
+                                        <input
+                                            id="email"
+                                            name="email"
+                                            type="email"
+                                            onChange={handleInputChange}
+                                            value={formData.email}
+                                            className={`w-full py-3 bg-gray-800/60 border rounded-lg focus:outline-none focus:ring-1 focus:shadow-[0_0_15px_rgba(252,211,77,0.1)] hover:border-gray-600 transition-all ${errors.email ? 'border-red-500/50 focus:ring-red-500/80 focus:border-red-500' : 'border-gray-700 focus:ring-amber-400/80 focus:border-amber-400'}`}
+                                            placeholder="you@example.com"
+                                            style={{ paddingLeft: '2.75rem', paddingRight: '0.75rem', textIndent: '0' }}
+                                        />
                                     </div>
                                     <InputError message={errors.email} />
                                 </div>
 
                                 <div>
                                     <div className="relative group/input">
-                                        <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-500 transition-colors duration-300 group-focus-within/input:text-amber-300" />
-                                        <input id="password" name="password" type={showPassword ? "text" : "password"} onChange={handleInputChange} value={formData.password} className={`w-full pl-10 pr-10 py-3 bg-gray-800/60 border rounded-lg focus:outline-none focus:ring-1 focus:shadow-[0_0_15px_rgba(252,211,77,0.1)] hover:border-gray-600 transition-all ${errors.password || loginError ? 'border-red-500/50 focus:ring-red-500/80 focus:border-red-500' : 'border-gray-700 focus:ring-amber-400/80 focus:border-amber-400'}`} placeholder="••••••••" />
-                                        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-amber-300 transition-colors">
+                                        <div className="absolute left-3 top-1/2 -translate-y-1/2 z-10 pointer-events-none">
+                                            <KeyRound className="h-4 w-4 text-gray-500 transition-colors duration-300 group-focus-within/input:text-amber-300" />
+                                        </div>
+                                        <input
+                                            id="password"
+                                            name="password"
+                                            type={showPassword ? "text" : "password"}
+                                            onChange={handleInputChange}
+                                            value={formData.password}
+                                            className={`w-full py-3 bg-gray-800/60 border rounded-lg focus:outline-none focus:ring-1 focus:shadow-[0_0_15px_rgba(252,211,77,0.1)] hover:border-gray-600 transition-all ${errors.password || loginError ? 'border-red-500/50 focus:ring-red-500/80 focus:border-red-500' : 'border-gray-700 focus:ring-amber-400/80 focus:border-amber-400'}`}
+                                            placeholder="••••••••"
+                                            style={{ paddingLeft: '2.75rem', paddingRight: '3rem', textIndent: '0' }}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-amber-300 transition-colors"
+                                            style={{ outline: 'none', border: 'none', background: 'transparent' }}
+                                        >
                                             {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                                         </button>
                                     </div>

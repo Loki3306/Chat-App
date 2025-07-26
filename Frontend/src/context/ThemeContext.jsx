@@ -4,37 +4,20 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 const ThemeContext = createContext();
 
 export const ThemeProvider = ({ children }) => {
-  const [theme, setTheme] = useState('light');
-  const [systemTheme, setSystemTheme] = useState(null);
-
-  const themes = ['light', 'dark', 'blue', 'green', 'purple'];
-
-  // Check system preference
-  useEffect(() => {
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleSystemThemeChange = (e) => {
-      setSystemTheme(e.matches ? 'dark' : 'light');
-    };
-    
-    mediaQuery.addEventListener('change', handleSystemThemeChange);
-    setSystemTheme(mediaQuery.matches ? 'dark' : 'light');
-    
-    return () => mediaQuery.removeEventListener('change', handleSystemThemeChange);
-  }, []);
+  const [theme, setTheme] = useState('dark');
 
   // Load saved theme from localStorage
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme');
-    if (savedTheme && themes.includes(savedTheme)) {
+    if (savedTheme) {
       setTheme(savedTheme);
-    } else if (systemTheme) {
-      setTheme(systemTheme);
     }
-  }, [systemTheme]);
+  }, []);
 
-  // Apply theme changes
+  // Apply theme changes - minimal approach
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(theme);
     localStorage.setItem('theme', theme);
   }, [theme]);
 
@@ -43,7 +26,7 @@ export const ThemeProvider = ({ children }) => {
   };
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, themes }}>
+    <ThemeContext.Provider value={{ theme, toggleTheme }}>
       {children}
     </ThemeContext.Provider>
   );

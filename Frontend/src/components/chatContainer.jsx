@@ -1,6 +1,6 @@
 import React from 'react'
 
-const SettingsPage = () => {
+const chatContainer = () => {
   return (
     <div>
       
@@ -8,4 +8,4 @@ const SettingsPage = () => {
   )
 }
 
-export default SettingsPage
+export default chatContainer

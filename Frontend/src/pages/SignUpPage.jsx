@@ -1,9 +1,8 @@
 import React from 'react';
 import { useAuthStore } from '../store/useAuthStore.js';
 import { Link, useNavigate } from 'react-router-dom';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react'; // Combined imports
 import { axiosInstance } from '../lib/axios.js';
-import { useState } from 'react';
 import { MessageSquare, Eye, EyeOff, User, Mail, KeyRound, Users, Settings, Code, PenTool, Heart, Compass, Shield, AlertTriangle, CheckCircle } from 'lucide-react';
 
 
@@ -33,7 +32,7 @@ const InputError = ({ message }) => {
     );
 };
 
-// New Cycling Icon Component
+// New Cycling Icon Component - CORRECTED FOR ANIMATION RESET (from previous fix)
 const CyclingIcon = () => {
     const icons = [
         <MessageSquare key="msg" className="size-10 text-amber-300" />,
@@ -47,21 +46,26 @@ const CyclingIcon = () => {
     ];
     const [currentIndex, setCurrentIndex] = useState(0);
     const timerRef = useRef(null);
+    
     const nextIcon = () => {
         setCurrentIndex(prevIndex => (prevIndex + 1) % icons.length);
     };
-    const resetTimer = () => {
+    
+    const startAutomaticTimer = () => { 
         clearTimeout(timerRef.current);
         timerRef.current = setTimeout(nextIcon, 3000);
     };
+    
     const handleClick = () => {
         nextIcon();
-        resetTimer();
+        startAutomaticTimer(); 
     };
+    
     useEffect(() => {
-        resetTimer();
-        return () => clearTimeout(timerRef.current);
-    }, [currentIndex]);
+        startAutomaticTimer(); 
+        return () => clearTimeout(timerRef.current); 
+    }, [currentIndex]); 
+
     return (
         <div onClick={handleClick} className="cursor-pointer group relative w-10 h-10 flex items-center justify-center">
             {icons.map((icon, index) => (
@@ -73,6 +77,7 @@ const CyclingIcon = () => {
     );
 };
 
+// GlobalGlowEffect component - RESTORED AND CONFIRMED PRESENT
 const GlobalGlowEffect = () => {
     const glowRef = useRef(null);
     useEffect(() => {
@@ -187,7 +192,48 @@ const SignUpPage = () => {
   return (
     <>
       <style>{`
-        /* ... All your existing styles remain the same ... */
+        /* Reset any global input styles that might interfere */
+        input[type="email"], input[type="text"], input[type="password"] {
+          text-indent: 0 !important;
+        }
+        button:focus {
+          outline: none !important;
+          box-shadow: none !important;
+        }
+        
+        /* Background styles */
+        .main-background {
+          background: linear-gradient(135deg, #0f172a 0%, #1e293b 25%, #374151 50%, #1f2937 75%, #111827 100%);
+          position: relative;
+          overflow: hidden;
+        }
+        
+        .main-background::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: 
+            radial-gradient(circle at 20% 50%, rgba(252, 211, 77, 0.1) 0%, transparent 50%),
+            radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.1) 0%, transparent 50%),
+            radial-gradient(circle at 40% 80%, rgba(34, 197, 94, 0.05) 0%, transparent 50%);
+          pointer-events: none;
+        }
+        
+        .main-background::after {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23374151' fill-opacity='0.05'%3E%3Ccircle cx='30' cy='30' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+          pointer-events: none;
+        }
+        
+        /* Animations */
         @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in { animation: fade-in 1s ease-out forwards; }
         @keyframes fade-in-fast { from { opacity: 0; } to { opacity: 1; } }
@@ -201,14 +247,15 @@ const SignUpPage = () => {
         .animate-toast-in { animation: toast-in .5s cubic-bezier(.21, 1.02, .73, 1) forwards; }
       `}</style>
       
-      <GlobalGlowEffect />
+      {/* GLOBAL GLOW EFFECT - RESTORED */}
+      <GlobalGlowEffect /> 
       <SuccessToast message={successToast} onDismiss={() => setSuccessToast('')} />
 
-      <div className="min-h-screen flex w-full text-gray-300">
-        <div className="relative hidden lg:flex w-1/2 flex-col items-center justify-center bg-transparent">
+      <div className="min-h-screen flex w-full text-gray-300 main-background">
+        <div className="relative hidden lg:flex w-1/2 flex-col items-center justify-center">
           <ElegantAccountHeader />
         </div>
-        <div className="w-full lg:w-1/2 flex flex-col items-center justify-center bg-transparent p-6">
+        <div className="w-full lg:w-1/2 flex flex-col items-center justify-center p-6">
           <div className="relative z-10 w-full max-w-md">
               <div className="group p-8 space-y-6 bg-gray-800/40 border border-gray-700/50 rounded-2xl shadow-2xl backdrop-blur-md transition-all duration-300 hover:border-amber-400/40 hover:shadow-amber-500/10 animate-form-slide-up">
                 <div className="text-center">
@@ -218,24 +265,61 @@ const SignUpPage = () => {
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
                     <div className="relative group/input">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-500 transition-colors duration-300 group-focus-within/input:text-amber-300" />
-                      <input id="email" name="email" type="email" onChange={handleInputChange} value={formData.email} className={`w-full pl-10 pr-3 py-3 bg-gray-800/60 border rounded-lg focus:outline-none focus:ring-1 focus:shadow-[0_0_15px_rgba(252,211,77,0.1)] hover:border-gray-600 transition-all ${errors.email ? 'border-red-500/50 focus:ring-red-500/80 focus:border-red-500' : 'border-gray-700 focus:ring-amber-400/80 focus:border-amber-400'}`} placeholder="you@example.com" />
-                    </div>
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 z-10 pointer-events-none">
+                        <Mail className="h-4 w-4 text-gray-500 transition-colors duration-300 group-focus-within/input:text-amber-300" />
+                      </div>
+                      <input 
+                        id="email" 
+                        name="email" 
+                        type="email" 
+                        onChange={handleInputChange} 
+                        value={formData.email} 
+                        className={`w-full py-3 bg-gray-800/60 border rounded-lg focus:outline-none focus:ring-1 focus:shadow-[0_0_15px_rgba(252,211,77,0.1)] hover:border-gray-600 transition-all ${errors.email ? 'border-red-500/50 focus:ring-red-500/80 focus:border-red-500' : 'border-gray-700 focus:ring-amber-400/80 focus:border-amber-400'}`} 
+                        placeholder="you@example.com" 
+                        style={{paddingLeft: '2rem', paddingRight: '0.75rem'}} /* Adjusted paddingLeft */
+                      />
+                  </div>
                     <InputError message={errors.email} />
                   </div>
                   <div>
                     <div className="relative group/input">
-                      <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-500 transition-colors duration-300 group-focus-within/input:text-amber-300" />
-                      {/* ✅ **FIX 3: Changed name and value to 'fullName'** */}
-                      <input id="fullName" name="fullName" type="text" onChange={handleInputChange} value={formData.fullName} className={`w-full pl-10 pr-3 py-3 bg-gray-800/60 border rounded-lg focus:outline-none focus:ring-1 focus:shadow-[0_0_15px_rgba(252,211,77,0.1)] hover:border-gray-600 transition-all ${errors.fullName ? 'border-red-500/50 focus:ring-red-500/80 focus:border-red-500' : 'border-gray-700 focus:ring-amber-400/80 focus:border-amber-400'}`} placeholder="e.g., Jane Doe" />
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 z-10 pointer-events-none">
+                        <User className="h-4 w-4 text-gray-500 transition-colors duration-300 group-focus-within/input:text-amber-300" />
+                      </div>
+                      <input 
+                        id="fullName" 
+                        name="fullName" 
+                        type="text" 
+                        onChange={handleInputChange} 
+                        value={formData.fullName} 
+                        className={`w-full py-3 bg-gray-800/60 border rounded-lg focus:outline-none focus:ring-1 focus:shadow-[0_0_15px_rgba(252,211,77,0.1)] hover:border-gray-600 transition-all ${errors.fullName ? 'border-red-500/50 focus:ring-red-500/80 focus:border-red-500' : 'border-gray-700 focus:ring-amber-400/80 focus:border-amber-400'}`} 
+                        placeholder="e.g., Jane Doe" 
+                        style={{paddingLeft: '2rem', paddingRight: '0.75rem'}} /* Adjusted paddingLeft */
+                      />
                     </div>
                     <InputError message={errors.fullName} />
                   </div>
                   <div>
                     <div className="relative group/input">
-                      <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-500 transition-colors duration-300 group-focus-within/input:text-amber-300" />
-                      <input id="password" name="password" type={showPassword ? "text" : "password"} onChange={handleInputChange} value={formData.password} className={`w-full pl-10 pr-10 py-3 bg-gray-800/60 border rounded-lg focus:outline-none focus:ring-1 focus:shadow-[0_0_15px_rgba(252,211,77,0.1)] hover:border-gray-600 transition-all ${errors.password ? 'border-red-500/50 focus:ring-red-500/80 focus:border-red-500' : 'border-gray-700 focus:ring-amber-400/80 focus:border-amber-400'}`} placeholder="••••••••" />
-                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-amber-300 transition-colors">
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 z-10 pointer-events-none">
+                        <KeyRound className="h-4 w-4 text-gray-500 transition-colors duration-300 group-focus-within/input:text-amber-300" />
+                      </div>
+                      <input 
+                        id="password" 
+                        name="password" 
+                        type={showPassword ? "text" : "password"} 
+                        onChange={handleInputChange} 
+                        value={formData.password} 
+                        className={`w-full py-3 bg-gray-800/60 border rounded-lg focus:outline-none focus:ring-1 focus:shadow-[0_0_15px_rgba(252,211,77,0.1)] hover:border-gray-600 transition-all ${errors.password ? 'border-red-500/50 focus:ring-red-500/80 focus:border-red-500' : 'border-gray-700 focus:ring-amber-400/80 focus:border-amber-400'}`} 
+                        placeholder="••••••••" 
+                        style={{paddingLeft: '2rem', paddingRight: '3rem'}} /* Adjusted paddingLeft */
+                      />
+                      <button 
+                        type="button" 
+                        onClick={() => setShowPassword(!showPassword)} 
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-amber-300 transition-colors"
+                        style={{outline: 'none', border: 'none', background: 'transparent', boxShadow: 'none'}} /* Added boxShadow: 'none' and confirmed outline: 'none' */
+                      >
                         {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                       </button>
                     </div>

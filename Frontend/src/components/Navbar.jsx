@@ -64,7 +64,7 @@ const Navbar = () => {
             </Link>
             <button
               onClick={handleLogout}
-              className="p-2 rounded-full text-gray-400 hover:text-red-400 hover:bg-red-900/50 transition-all duration-300 transform hover:scale-110"
+              className="p-2 rounded-full text-gray-700 hover:text-white hover:bg-red-900/50 transition-all duration-300 transform hover:scale-110"
               aria-label="Logout"
             >
               <LogOut size={22} />
