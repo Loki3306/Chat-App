@@ -1,12 +1,13 @@
 import { create } from 'zustand';
 import { axiosInstance } from '../lib/axios.js';
-import { useAuthStore } from './useAuthStore.js';
+// Removed direct import of useAuthStore to prevent circular dependency
+// Use dynamic import instead when accessing useAuthStore.getState().setToast()
 
 export const useChatStore = create((set, get) => ({
     messages: [],
-    users: [], // This is now your 'conversations' list of users
+    users: [], // Ensure this is initialized as an empty array
     selectedUser: null,
-    selectedChat: null, // This seems redundant if selectedUser is always the target chat
+    selectedChat: null,
     isUsersLoading: false,
     isMessagesLoading: false,
     isSendingMessage: false,
@@ -20,8 +21,7 @@ export const useChatStore = create((set, get) => ({
             console.log("useChatStore: API call to /users successful.");
             console.log("useChatStore: Response data for users:", response.data);
 
-            // Enhance users with online status immediately after fetching
-            const onlineUsersList = get().onlineUsers; // Get current online users from state
+            const onlineUsersList = get().onlineUsers;
             const usersWithOnlineStatus = response.data.map(user => ({
                 ...user,
                 isOnline: onlineUsersList.includes(user._id)
@@ -31,14 +31,10 @@ export const useChatStore = create((set, get) => ({
 
         } catch (error) {
             console.error('useChatStore: Error fetching users:', error);
-            if (error.response) {
-                console.error("useChatStore: Error response data:", error.response.data);
-                console.error("useChatStore: Error response status:", error.response.status);
-            } else if (error.request) {
-                console.error("useChatStore: Error request:", error.request);
-            } else {
-                console.error("useChatStore: Error message:", error.message);
-            }
+            // Dynamic import for useAuthStore
+            import('./useAuthStore.js').then(module => {
+                module.useAuthStore.getState().setToast({ message: "Failed to fetch users.", type: 'error' });
+            });
             set({ isUsersLoading: false });
         }
     },
@@ -50,132 +46,215 @@ export const useChatStore = create((set, get) => ({
             set({ messages: response.data, isMessagesLoading: false });
         } catch (error) {
             console.error('Error fetching messages:', error);
+            import('./useAuthStore.js').then(module => {
+                module.useAuthStore.getState().setToast({ message: "Failed to fetch messages.", type: 'error' });
+            });
             set({ isMessagesLoading: false });
         }
     },
 
     sendMessage: async (userId, text, file = null) => {
         set({ isSendingMessage: true });
-        const { selectedUser, messages } = get(); // Get current state for optimistic update
-
-        // OPTIONAL: Optimistic update BEFORE API call for faster UI feedback.
-        // If you do this, you MUST handle errors by reverting the message,
-        // and on success, you might want to replace the temporary message with the real one from the server.
-        // For now, sticking to the existing pattern of updating AFTER success.
+        const { selectedUser } = get();
 
         try {
-            let response;
             const formData = new FormData();
             formData.append('text', text);
             if (file) {
                 formData.append('file', file);
             }
 
-            // Using selectedUser for consistency, though userId is passed.
-            // The backend endpoint likely expects the ID of the *recipient*.
-            response = await axiosInstance.post(`/messages/send/${userId}`, formData, {
+            const response = await axiosInstance.post(`/messages/send/${userId}`, formData, {
                 headers: {
                     'Content-Type': file ? 'multipart/form-data' : 'application/json',
                 },
             });
 
-            // Update messages with the new message from the server response.
-            // This is the "confirmed" message, so it's safer.
+            const sentMessage = response.data;
+
             set((state) => ({
-                messages: [...state.messages, response.data],
-                // Update lastMessage on selectedUser for display in sidebar, etc.
-                selectedUser: state.selectedUser && state.selectedUser._id === userId
-                    ? { ...state.selectedUser, lastMessage: response.data }
-                    : state.selectedUser,
-                isSendingMessage: false,
+                messages: [...state.messages, sentMessage],
+                users: state.users.map(user => {
+                    if (state.selectedUser && user._id === state.selectedUser._id) {
+                        return { ...user, lastMessage: sentMessage.text || sentMessage.image || sentMessage.fileUrl };
+                    }
+                    return user;
+                })
             }));
 
         } catch (error) {
             console.error('Error sending message:', error);
-            // Consider showing a toast notification here
+            import('./useAuthStore.js').then(module => {
+                module.useAuthStore.getState().setToast({ message: "Failed to send message.", type: 'error' });
+            });
+        } finally {
             set({ isSendingMessage: false });
         }
     },
 
-    // --- NEW: Add deleteMessages action ---
-    deleteMessages: async (receiverId) => {
-        set({ isMessagesLoading: true }); // Indicate loading while deleting
+    setSelectedUser: (user) => {
+        set({
+            selectedUser: user,
+            selectedChat: user
+        });
+    },
+
+    deleteMessage: async (messageId) => {
+        set({ isMessagesLoading: true });
         try {
-            // No need to get token explicitly here if axiosInstance is configured with interceptors
-            // that attach the token from useAuthStore automatically.
-            // Assuming axiosInstance already handles Authorization headers.
-            const response = await axiosInstance.delete(`/messages/${receiverId}`);
+            const response = await axiosInstance.delete(`/messages/single/${messageId}`);
+            console.log(`[FRONTEND STORE] Message ${messageId} delete API response:`, response.data);
 
-            if (response.status === 200) {
-                // Clear messages for the currently selected chat
-                set({ messages: [] });
-                console.log('Chat history deleted successfully!');
+            set((state) => {
+                const updatedMessages = state.messages.filter(msg => msg._id !== messageId);
+                
+                let newLastMessageContent = null;
+                let newLastMessageSender = null;
+                const conversationMessages = updatedMessages.filter(msg => msg.conversationId === state.selectedUser?.conversationId);
+                if (conversationMessages.length > 0) {
+                    const lastMsg = conversationMessages[conversationMessages.length - 1];
+                    newLastMessageContent = lastMsg.text || lastMsg.image || lastMsg.fileUrl || "";
+                    newLastMessageSender = lastMsg.senderId;
+                }
 
-                // Optionally, update the 'users' list to clear the lastMessage preview
-                // for the conversation that was just deleted.
-                set((state) => ({
-                    users: state.users.map(user => {
-                        if (user._id === receiverId) {
-                            return { ...user, lastMessage: null }; // Or set to an empty object if lastMessage is always expected
-                        }
-                        return user;
-                    }),
-                    // If the selected user's chat was just deleted, might want to clear selectedUser too.
-                    // Or keep it selected if user is expected to start a new convo.
-                    // selectedUser: null, // Uncomment if you want to deselect after deleting
-                }));
-            }
+                const updatedUsers = state.users.map(user => {
+                    if (state.selectedUser && user._id === state.selectedUser._id) {
+                        return { ...user, lastMessage: newLastMessageContent, lastMessageSender: newLastMessageSender };
+                    }
+                    return user;
+                });
+
+                return { messages: updatedMessages, users: updatedUsers };
+            });
+            import('./useAuthStore.js').then(module => {
+                module.useAuthStore.getState().setToast({ message: "Message deleted!", type: 'success' });
+            });
 
         } catch (error) {
-            console.error('Error deleting messages:', error);
-            // Handle error, e.g., show a toast notification
+            console.error('Error deleting message:', error);
+            import('./useAuthStore.js').then(module => {
+                module.useAuthStore.getState().setToast({ message: "Failed to delete message.", type: 'error' });
+            });
+            get().getMessages(get().selectedUser._id);
         } finally {
             set({ isMessagesLoading: false });
         }
     },
-    // --- END NEW ---
 
-    setSelectedUser: (user) => {
-        set({
-            selectedUser: user,
-            selectedChat: user // This is redundant if selectedUser is the only active chat, consider removing selectedChat
+    editMessage: async (messageId, newText) => {
+        set({ isMessagesLoading: true });
+        try {
+            const response = await axiosInstance.put(`/messages/single/${messageId}`, { text: newText });
+            const updatedMessage = response.data;
+
+            set((state) => {
+                const updatedMessagesList = state.messages.map(msg =>
+                    msg._id === messageId ? updatedMessage : msg
+                );
+
+                let newLastMessageContent = null;
+                let newLastMessageSender = null;
+                const conversationMessages = updatedMessagesList.filter(msg => msg.conversationId === state.selectedUser?.conversationId);
+                if (conversationMessages.length > 0) {
+                    const lastMsg = conversationMessages[conversationMessages.length - 1];
+                    newLastMessageContent = lastMsg.text || lastMsg.image || lastMsg.fileUrl || "";
+                    newLastMessageSender = lastMsg.senderId;
+                }
+
+                const updatedUsers = state.users.map(user => {
+                    if (state.selectedUser && user._id === state.selectedUser._id) {
+                        return { ...user, lastMessage: newLastMessageContent, lastMessageSender: newLastMessageSender };
+                    }
+                    return user;
+                });
+
+                return { messages: updatedMessagesList, users: updatedUsers };
+            });
+            import('./useAuthStore.js').then(module => {
+                module.useAuthStore.getState().setToast({ message: "Message edited!", type: 'success' });
+            });
+
+        } catch (error) {
+            console.error('Error editing message:', error);
+            import('./useAuthStore.js').then(module => {
+                module.useAuthStore.getState().setToast({ message: "Failed to edit message.", type: 'error' });
+            });
+        } finally {
+            set({ isMessagesLoading: false });
+        }
+    },
+
+    // --- Action to remove a message (triggered by Socket.IO 'messageDeleted' event) ---
+    removeMessage: (deletedMessageId) => {
+        set((state) => {
+            const updatedMessages = state.messages.filter(msg => msg._id !== deletedMessageId);
+
+            let newLastMessageContent = null;
+            let newLastMessageSender = null;
+            
+            // Safely access state.selectedUser.conversationId
+            const currentConversationId = state.selectedUser?.conversationId; 
+            
+            if (state.selectedUser && currentConversationId) {
+                 const messagesForCurrentConversation = updatedMessages.filter(msg => msg.conversationId === currentConversationId);
+                 if (messagesForCurrentConversation.length > 0) {
+                     const lastMsg = messagesForCurrentConversation[messagesForCurrentConversation.length - 1];
+                     newLastMessageContent = lastMsg.text || lastMsg.image || lastMsg.fileUrl || "";
+                     newLastMessageSender = lastMsg.senderId;
+                 }
+            }
+
+            // Corrected: Ensure state.users is an array before mapping
+            const updatedUsers = (state.users || []).map(user => { // <-- FIX HERE (line 242 was here before)
+                if (state.selectedUser && user._id === state.selectedUser._id) {
+                    return { ...user, lastMessage: newLastMessageContent, lastMessageSender: newLastMessageSender };
+                }
+                return user;
+            });
+
+            return { messages: updatedMessages, users: updatedUsers };
         });
     },
 
-    addMessage: (newMessage) => {
-        const { selectedUser, messages } = get();
-        // Only add the message if it's for the currently selected chat
-        // This prevents messages from other chats from appearing in the current view
-        // It's also important to prevent duplicates if your `sendMessage`
-        // performs an optimistic update *and* the server immediately sends a socket event back.
-        // A common pattern is to include a `socketId` in optimistic updates and filter on `addMessage`
-        // if the incoming message has the same socketId as the sender's current socket.
-        // For now, checking `_id` should be sufficient if the backend returns the same _id for both.
-        if (selectedUser && (newMessage.senderId === selectedUser._id || newMessage.receiverId === selectedUser._id)) {
-            // Prevent adding the same message twice if sendMessage also updates `messages`
-            const isDuplicate = messages.some(msg => msg._id === newMessage._id);
-            if (!isDuplicate) {
-                set((state) => ({ messages: [...state.messages, newMessage] }));
+    // --- Action to update a message (triggered by Socket.IO 'messageEdited' event) ---
+    updateMessage: (updatedMessage) => {
+        set((state) => {
+            const updatedMessagesList = state.messages.map(msg =>
+                msg._id === updatedMessage._id ? updatedMessage : msg
+            );
 
-                // Update lastMessage in the `users` list when a new message arrives
-                set((state) => ({
-                    users: state.users.map(user => {
-                        if (user._id === newMessage.senderId || user._id === newMessage.receiverId) {
-                            // Assuming the sender or receiver of the new message is the one whose preview needs update
-                            return { ...user, lastMessage: newMessage };
-                        }
-                        return user;
-                    }),
-                }));
+            let newLastMessageContent = null;
+            let newLastMessageSender = null;
+            
+            // Safely access state.selectedUser.conversationId
+            const currentConversationId = state.selectedUser?.conversationId; 
+
+            if (state.selectedUser && currentConversationId) {
+                const messagesForCurrentConversation = updatedMessagesList.filter(msg => msg.conversationId === currentConversationId);
+                if (messagesForCurrentConversation.length > 0) {
+                    const lastMsg = messagesForCurrentConversation[messagesForCurrentConversation.length - 1];
+                    newLastMessageContent = lastMsg.text || lastMsg.image || lastMsg.fileUrl || "";
+                    newLastMessageSender = lastMsg.senderId;
+                }
             }
-        }
+
+            // Corrected: Ensure state.users is an array before mapping
+            const updatedUsers = (state.users || []).map(user => { // <-- FIX HERE
+                if (state.selectedUser && user._id === state.selectedUser._id) {
+                    return { ...user, lastMessage: newLastMessageContent, lastMessageSender: newLastMessageSender };
+                }
+                return user;
+            });
+
+            return { messages: updatedMessagesList, users: updatedUsers };
+        });
     },
 
     setOnlineUsers: (onlineUsersList) => {
         set({ onlineUsers: onlineUsersList });
-        // When online users change, update the `isOnline` status for all users in the `users` list
+        // Corrected: Ensure state.users is an array before mapping (Line 241/242 was here)
         set((state) => ({
-            users: state.users.map(user => ({
+            users: (state.users || []).map(user => ({ // <-- FIX HERE
                 ...user,
                 isOnline: onlineUsersList.includes(user._id)
             }))

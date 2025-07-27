@@ -1,37 +1,31 @@
+// frontend/src/components/ChatContainer.jsx
+
 import React, { useEffect, useRef, useState } from 'react';
 import { useChatStore } from '../store/useChatStore.js';
-import { useAuthStore } from '../store/useAuthStore.js'; // Keep this import
+import { useAuthStore } from '../store/useAuthStore.js';
 import MessageInput from './MessageInput';
+import ChatMessage from './ChatMessage.jsx'; // <-- Import ChatMessage component
 import {
-    Send,
-    Smile,
-    Paperclip,
     MoreVertical,
     XCircle,
     Loader2,
     MessageSquare,
     Palette,
     X,
-    Trash2 // Import the Trash2 icon
 } from 'lucide-react';
 import { emojiCategories } from '../components/emojiData.js';
-// REMOVED: import toast from 'react-hot-toast'; // This line is removed
 
 const ChatContainer = () => {
-    // Destructure deleteMessages from useChatStore
-    const { messages, getMessages, isMessageLoading, selectedUser, setSelectedUser, deleteMessages } = useChatStore();
-    // Destructure toast and clearToast from useAuthStore
-    const { authUser, toast, clearToast } = useAuthStore(); // MODIFIED: Added toast, clearToast
+    const { messages, getMessages, isMessageLoading, selectedUser, setSelectedUser } = useChatStore();
+    const { authUser, setToast, clearToast } = useAuthStore();
 
     const [showThemeTab, setShowThemeTab] = useState(false);
     const [showEmojiTab, setShowEmojiTab] = useState(false);
     const [currentTheme, setCurrentTheme] = useState('amber');
-    // NEW: State for delete confirmation dialog
-    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
     const messagesEndRef = useRef(null);
     const chatContainerRef = useRef(null);
-    const messagesContainerRef = useRef(null);
+    const messagesContainerRef = useRef(null); // <-- Keep this ref here
 
     const [mousePosition, setMousePosition] = useState({ x: '50%', y: '50%' });
     const animationFrameRef = useRef(0);
@@ -162,13 +156,11 @@ const ChatContainer = () => {
     const handleThemeSettings = () => {
         setShowThemeTab(!showThemeTab);
         setShowEmojiTab(false);
-        setShowDeleteConfirm(false); // Close delete confirm if open
     };
 
     const handleEmojiClick = () => {
         setShowEmojiTab(!showEmojiTab);
         setShowThemeTab(false);
-        setShowDeleteConfirm(false); // Close delete confirm if open
     };
 
     const handleThemeChange = (themeName) => {
@@ -193,38 +185,6 @@ const ChatContainer = () => {
     const closeFullScreenImage = () => {
         setFullScreenImageUrl(null);
     };
-
-    // --- NEW: Delete Chat Handlers ---
-    const handleDeleteChatClick = () => {
-        setShowDeleteConfirm(true); // Show confirmation dialog
-        setShowThemeTab(false); // Close other tabs
-        setShowEmojiTab(false);
-    };
-
-    const confirmDeleteChat = async () => {
-        if (selectedUser) {
-            try {
-                await deleteMessages(selectedUser._id);
-                // Use your custom toast function from useAuthStore
-                toast({ message: `Chat history with ${selectedUser.fullName || 'this user'} cleared!`, type: 'success' });
-                setShowDeleteConfirm(false); // Close dialog
-            } catch (error) {
-                // Use your custom toast function for errors
-                toast({ message: "Failed to delete chat history.", type: 'error' });
-                console.error("Error confirming delete chat:", error);
-                setShowDeleteConfirm(false);
-            }
-        } else {
-            // Use your custom toast function for errors
-            toast({ message: "No user selected to delete chat.", type: 'error' });
-            setShowDeleteConfirm(false);
-        }
-    };
-
-    const cancelDeleteChat = () => {
-        setShowDeleteConfirm(false); // Close dialog
-    };
-    // --- END NEW ---
 
     if (!selectedUser) {
         return null;
@@ -345,33 +305,6 @@ const ChatContainer = () => {
                 </div>
             )}
 
-            {/* NEW: Delete Confirmation Modal */}
-            {showDeleteConfirm && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70 backdrop-blur-sm">
-                    <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 shadow-xl text-center">
-                        <h3 className="text-xl font-semibold text-white mb-4">Confirm Delete Chat</h3>
-                        <p className="text-gray-300 mb-6">
-                            Are you sure you want to delete all messages with <span className="font-bold text-red-400">{selectedUser.fullName}</span>? This action cannot be undone.
-                        </p>
-                        <div className="flex justify-center gap-4">
-                            <button
-                                onClick={confirmDeleteChat}
-                                className="px-6 py-2 rounded-lg bg-red-600 text-white font-semibold hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
-                            >
-                                Delete
-                            </button>
-                            <button
-                                onClick={cancelDeleteChat}
-                                className="px-6 py-2 rounded-lg bg-gray-600 text-gray-200 font-semibold hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50"
-                            >
-                                Cancel
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-
             {/* Chat Header - Fixed Height */}
             <div className="flex items-center justify-between p-4 border-b border-gray-700/50 bg-gray-800/60 rounded-t-lg backdrop-blur-sm flex-shrink-0">
                 <div className="flex items-center space-x-3">
@@ -391,16 +324,6 @@ const ChatContainer = () => {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    {/* NEW: Delete Chat Button */}
-                    <button
-                        onClick={handleDeleteChatClick}
-                        className="p-2 rounded-full bg-red-500/20 text-red-400 hover:bg-red-500/30 hover:text-red-300 transition-all duration-200"
-                        aria-label="Delete Chat"
-                        title="Delete Chat History" // Add a tooltip for better UX
-                    >
-                        <Trash2 size={18} />
-                    </button>
-
                     <button
                         onClick={handleThemeSettings}
                         className="p-2 rounded-full transition-all duration-200"
@@ -438,83 +361,17 @@ const ChatContainer = () => {
                 ) : messages.length > 0 ? (
                     messages.map((message) => {
                         const isMyMessage = message.senderId === authUser._id;
-                        const hasText = message.text && message.text.trim().length > 0;
-                        const hasImage = message.image && message.image.trim().length > 0;
-                        const hasFile = message.fileUrl && message.fileUrl.trim().length > 0;
-
-                        const senderProfilePicture = isMyMessage
-                            ? authUser.profilePicture || defaultUserAvatar
-                            : selectedUser.profilePicture || defaultUserAvatar;
-
                         return (
-                            <div
+                            <ChatMessage
                                 key={message._id}
-                                className={`flex items-end gap-2 ${isMyMessage ? 'justify-end' : 'justify-start'}`}
-                            >
-                                {!isMyMessage && (
-                                    <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
-                                        <img
-                                            src={senderProfilePicture}
-                                            alt="Sender Avatar"
-                                            className="w-full h-full object-cover"
-                                            onError={(e) => { e.target.onerror = null; e.target.src = defaultUserAvatar; }}
-                                        />
-                                    </div>
-                                )}
-                                <div
-                                    className={`flex flex-col gap-1 max-w-[70%] p-2 rounded-xl shadow-md ${
-                                        isMyMessage
-                                            ? 'text-white rounded-br-none'
-                                            : 'bg-gray-700/50 text-gray-200 rounded-bl-none'
-                                    }`}
-                                    style={
-                                        isMyMessage
-                                            ? { backgroundColor: themeStyles.messageBubbleBg }
-                                            : { backgroundColor: 'rgba(75, 85, 99, 0.5)' }
-                                    }
-                                >
-                                    {hasImage && (
-                                        <div className="relative w-52 h-40 rounded-lg overflow-hidden cursor-pointer shadow-sm">
-                                            <img
-                                                src={message.image}
-                                                alt="Message Attachment"
-                                                className="w-full h-full object-cover rounded-lg transform transition-transform duration-200 hover:scale-105"
-                                                onClick={() => openFullScreenImage(message.image)}
-                                            />
-                                        </div>
-                                    )}
-                                    {hasFile && !hasImage && (
-                                        <a
-                                            href={message.fileUrl}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="flex items-center gap-2 p-2 bg-gray-600/50 rounded-md text-blue-300 hover:underline hover:bg-gray-600/70 transition-colors w-full"
-                                        >
-                                            <Paperclip size={16} />
-                                            <span className="truncate flex-1">{message.fileName || 'Attached File'}</span>
-                                        </a>
-                                    )}
-                                    {hasText && (
-                                        <p className="text-sm px-1 pt-1 break-words">{message.text}</p>
-                                    )}
-                                    <span
-                                        className={`self-end text-xs opacity-70 mt-1 ml-auto ${hasImage || hasFile || hasText ? 'mr-1' : ''}`}
-                                        style={{ color: isMyMessage ? 'rgba(255, 255, 255, 0.7)' : 'rgba(209, 213, 219, 0.7)' }}
-                                    >
-                                        {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </span>
-                                </div>
-                                {isMyMessage && (
-                                    <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
-                                        <img
-                                            src={senderProfilePicture}
-                                            alt="Sender Avatar"
-                                            className="w-full h-full object-cover"
-                                            onError={(e) => { e.target.onerror = null; e.target.src = defaultUserAvatar; }}
-                                        />
-                                    </div>
-                                )}
-                            </div>
+                                message={message}
+                                isMyMessage={isMyMessage}
+                                senderProfilePicture={isMyMessage ? authUser.profilePicture || defaultUserAvatar : selectedUser.profilePicture || defaultUserAvatar}
+                                defaultUserAvatar={defaultUserAvatar}
+                                themeStyles={themeStyles}
+                                openFullScreenImage={openFullScreenImage}
+                                messagesContainerRef={messagesContainerRef} // <-- Pass the ref here
+                            />
                         );
                     })
                 ) : (
@@ -541,3 +398,4 @@ const ChatContainer = () => {
 };
 
 export default ChatContainer;
+

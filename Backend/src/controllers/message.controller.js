@@ -1,124 +1,295 @@
 // backend/controllers/message.controller.js
 
-import User from "../models/user.model.js";
+import Conversation from "../models/conversation.model.js";
 import Message from "../models/message.model.js";
-import { v2 as cloudinary } from 'cloudinary';
-// IMPORT io and userSocketMap from your new socket.js file
-import { io, userSocketMap } from '../lib/socket.js'; // <--- IMPORTANT: Adjust path if needed
+import { io, userSocketMap } from '../lib/socket.js'; // Ensure io and userSocketMap are imported
+import cloudinary from '../lib/cloudinary.js'; // Adjust path if your cloudinary.js is in ../utils/cloudinary.js or ../lib/cloudinary.js
 
-// CLOUDINARY CONFIGURATION (REQUIRED)
-// Ensure your .env variables are loaded (dotenv.env() in index.js)
-cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+// --- Existing Controller Functions ---
 
 export const getUsersForSiderbar = async (req, res) => {
     try {
         const loggedInUserId = req.user._id;
-        const filteredUsers = await User.find({ _id: { $ne: loggedInUserId } }).select("-password");
-        res.status(200).json(filteredUsers);
+        const allUsers = await Conversation.find({ participants: loggedInUserId })
+            .populate({ path: 'participants', select: '-password' });
+
+        const usersForSidebar = [];
+        allUsers.forEach(conversation => {
+            conversation.participants.forEach(participant => {
+                if (participant._id.toString() !== loggedInUserId.toString()) {
+                    usersForSidebar.push(participant);
+                }
+            });
+        });
+
+        const uniqueUsers = Array.from(new Map(usersForSidebar.map(user => [user._id.toString(), user])).values());
+        const onlineUsers = Object.keys(userSocketMap);
+        const usersWithOnlineStatus = uniqueUsers.map(user => ({
+            ...user._doc,
+            isOnline: onlineUsers.includes(user._id.toString())
+        }));
+
+        res.status(200).json(usersWithOnlineStatus);
+
     } catch (error) {
-        console.error("Error fetching users for sidebar:", error);
-        res.status(500).json({ message: "Internal Server Error" });
+        console.error("Error in getUsersForSiderbar controller:", error.message);
+        res.status(500).json({ error: "Internal server error" });
     }
 };
 
 export const getMessages = async (req, res) => {
     try {
         const { id: userToChatId } = req.params;
-        const myId = req.user._id;
+        const senderId = req.user._id;
 
-        const messages = await Message.find({
-            $or: [
-                { senderId: myId, receiverId: userToChatId },
-                { senderId: userToChatId, receiverId: myId }
-            ]
-        }).sort({ createdAt: 1 });
+        const conversation = await Conversation.findOne({
+            participants: { $all: [senderId, userToChatId] },
+        }).populate("messages");
 
+        if (!conversation) return res.status(200).json([]);
+
+        const messages = conversation.messages;
         res.status(200).json(messages);
 
     } catch (error) {
-        console.error("Error in getMessages controller: ", error);
-        res.status(500).json({ message: "Internal Server Error" });
+        console.error("Error in getMessages controller:", error.message);
+        res.status(500).json({ error: "Internal server error" });
     }
 };
 
 export const sendMessage = async (req, res) => {
     try {
-        const { text } = req.body;
         const { id: receiverId } = req.params;
+        const { text } = req.body;
         const senderId = req.user._id;
+        const file = req.file;
+
+        console.log(`[SEND MESSAGE] Attempting to send message from ${senderId} to ${receiverId}`);
+        console.log(`[SEND MESSAGE] Text: "${text}", File: ${file ? file.originalname : 'None'}`);
 
         let imageUrl = null;
         let fileUrl = null;
         let fileName = null;
+        let fileType = null;
 
-        if (req.file) {
-            try {
-                const uploadResult = await cloudinary.uploader.upload(`data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`, {
-                    folder: 'chat_attachments',
-                    resource_type: 'auto'
-                });
+        if (file) {
+            const mimeType = file.mimetype;
+            fileName = file.originalname;
+            fileType = mimeType;
 
-                fileUrl = uploadResult.secure_url;
-                fileName = req.file.originalname;
-
-                if (req.file.mimetype.startsWith('image/')) {
-                    imageUrl = uploadResult.secure_url;
-                }
-            } catch (uploadError) {
-                console.error("Cloudinary upload error:", uploadError);
-                fileUrl = null;
-                imageUrl = null;
-                fileName = null;
+            const uploadOptions = {
+                folder: "chat-files",
+                resource_type: "auto",
+            };
+            if (mimeType.startsWith('image/')) {
+                uploadOptions.folder = "chat-images";
             }
+
+            const dataUri = `data:${mimeType};base64,${file.buffer.toString('base64')}`;
+            const result = await cloudinary.uploader.upload(dataUri, uploadOptions);
+
+            if (mimeType.startsWith('image/')) {
+                imageUrl = result.secure_url;
+                console.log(`Uploaded image: ${imageUrl}`);
+            } else {
+                fileUrl = result.secure_url;
+                console.log(`Uploaded file: ${fileUrl}`);
+            }
+        }
+
+        let conversation = await Conversation.findOne({
+            participants: { $all: [senderId, receiverId] },
+        });
+
+        if (!conversation) {
+            conversation = await Conversation.create({
+                participants: [senderId, receiverId],
+            });
+            console.log(`[SEND MESSAGE] Created new conversation: ${conversation._id}`);
         }
 
         const newMessage = new Message({
             senderId,
             receiverId,
-            text: text || '',
+            conversationId: conversation._id,
+            text: text,
             image: imageUrl,
             fileUrl: fileUrl,
             fileName: fileName,
+            fileType: fileType,
         });
 
-        await newMessage.save(); // Save the message to the database
-
-        // --- Socket.IO Real-time Emission (NEW) ---
-        const receiverSocketId = userSocketMap[receiverId]; // Get receiver's socket ID
-        const senderSocketId = userSocketMap[senderId];     // Get sender's socket ID (for multi-device sync)
-
-        // Emit message to the receiver if they are online
-        if (receiverSocketId) {
-            io.to(receiverSocketId).emit("newMessage", newMessage);
-            console.log(`Emitted newMessage to receiver ${receiverId} (Socket ID: ${receiverSocketId})`);
-        } else {
-            console.log(`Receiver ${receiverId} is offline. Message saved to DB.`);
+        if (newMessage) {
+            conversation.messages.push(newMessage._id);
+            conversation.lastMessage = newMessage.text || (newMessage.image ? "Image" : (newMessage.fileUrl ? `File: ${fileName}` : ""));
+            conversation.lastMessageSender = newMessage.senderId;
         }
 
-        // Emit message back to the sender's other devices (if any)
-        // Make sure not to send back to the same socket that initiated the request
-        // req.socket.id is the ID of the socket that made the HTTP request (if using Express with Socket.IO)
-        // However, req.socket.id is not directly available on Express req object in this context.
-        // A common pattern is to just emit to all sockets associated with the senderId,
-        // and the client-side will handle if it's a duplicate of what they just sent.
-        // Or, more robustly, pass the sender's current socket ID from frontend to backend.
-        // For simplicity, let's just emit to the sender's mapped socket if it exists.
-        // Note: The `req.socket.id` in Express controller context is the underlying TCP socket ID,
-        // not the Socket.IO client ID. We rely on `userSocketMap` for Socket.IO IDs.
-        if (senderSocketId && String(senderSocketId) !== String(req.headers['x-socket-id'])) { // Assuming frontend sends its socket ID in a header
-             io.to(senderSocketId).emit("newMessage", newMessage);
-             console.log(`Emitted newMessage to sender's other device ${senderId} (Socket ID: ${senderSocketId})`);
+        await Promise.all([conversation.save(), newMessage.save()]);
+        console.log(`[SEND MESSAGE] Message saved: ${newMessage._id}`);
+
+        const receiverSocketIds = userSocketMap[receiverId];
+        const senderSocketIds = userSocketMap[senderId];
+        const originatingSocketId = req.headers['x-socket-id'];
+
+        if (receiverSocketIds && receiverSocketIds.length > 0) {
+            console.log(`[SEND MESSAGE] Emitting newMessage to receiver ${receiverId} sockets:`, receiverSocketIds);
+            receiverSocketIds.forEach(socketId => {
+                io.to(socketId).emit("newMessage", newMessage);
+            });
+        }
+        if (senderSocketIds && senderSocketIds.length > 1) {
+            console.log(`[SEND MESSAGE] Emitting newMessage to sender ${senderId} other sockets.`);
+            senderSocketIds.filter(id => id !== originatingSocketId)
+                           .forEach(socketId => {
+                               io.to(socketId).emit("newMessage", newMessage);
+                           });
         }
 
-
-        res.status(201).json(newMessage); // Send the saved message back to the frontend (HTTP response)
+        res.status(201).json(newMessage);
 
     } catch (error) {
-        console.error("Error in sendMessage controller:", error);
-        res.status(500).json({ message: "Internal server error" });
+        console.error("Error in sendMessage controller:", error.message);
+        res.status(500).json({ error: "Internal server error" });
+    }
+};
+
+// --- NEW: Controller for Deleting a Single Message (Replaces old deleteMessages) ---
+export const deleteSingleMessage = async (req, res) => {
+    try {
+        const { id: messageId } = req.params; // The ID passed is the message's _id
+        const userId = req.user._id; // Authenticated user's ID
+
+        console.log(`[BACKEND DELETE SINGLE] Attempting to delete message ${messageId} by user ${userId}`);
+
+        const message = await Message.findById(messageId);
+
+        if (!message) {
+            console.log(`[BACKEND DELETE SINGLE] Message ${messageId} not found.`);
+            return res.status(404).json({ message: "Message not found." });
+        }
+
+        // Authorization: Only allow the sender of the message to delete it
+        if (message.senderId.toString() !== userId.toString()) {
+            console.warn(`[BACKEND DELETE SINGLE] User ${userId} tried to delete message ${messageId} which belongs to ${message.senderId}. Access denied.`);
+            return res.status(403).json({ message: "You are not authorized to delete this message." });
+        }
+
+        // Find the conversation the message belongs to
+        const conversation = await Conversation.findById(message.conversationId);
+        if (!conversation) {
+            console.warn(`[BACKEND DELETE SINGLE] Conversation for message ${messageId} not found, but proceeding with message deletion.`);
+            // It's possible the conversation was already deleted by other means,
+            // or there was a data inconsistency. Still delete the message.
+        }
+
+        // Delete the message from the Message collection
+        await Message.deleteOne({ _id: messageId });
+        console.log(`[BACKEND DELETE SINGLE] Successfully deleted message ${messageId} from DB.`);
+
+        // Update the Conversation document: remove message ID from its array and update lastMessage
+        if (conversation) {
+            conversation.messages = conversation.messages.filter(msgId => msgId.toString() !== messageId.toString());
+
+            // Recalculate and update lastMessage for the conversation if needed
+            if (conversation.messages.length > 0) {
+                // Fetch the new last message to update the conversation's lastMessage field
+                const newLastMessageDoc = await Message.findById(conversation.messages[conversation.messages.length - 1]);
+                if (newLastMessageDoc) {
+                    conversation.lastMessage = newLastMessageDoc.text || (newLastMessageDoc.image ? "Image" : (newLastMessageDoc.fileUrl ? "File" : ""));
+                    conversation.lastMessageSender = newLastMessageDoc.senderId;
+                } else { // Fallback if last message found is somehow not fully populated (unlikely with .findById)
+                    conversation.lastMessage = null;
+                    conversation.lastMessageSender = null;
+                }
+            } else {
+                // If no messages left in conversation, clear lastMessage fields
+                conversation.lastMessage = null;
+                conversation.lastMessageSender = null;
+            }
+            await conversation.save();
+            console.log(`[BACKEND DELETE SINGLE] Updated conversation ${conversation._id}: message ${messageId} removed, lastMessage re-evaluated.`);
+        }
+
+
+        // Real-time update: Emit to all participants in the conversation that a message was deleted
+        const participants = conversation ? conversation.participants : [message.senderId, message.receiverId]; // Fallback if conversation not found
+        for (const participantId of participants) {
+            const socketIds = userSocketMap[participantId.toString()];
+            if (socketIds && socketIds.length > 0) {
+                console.log(`[BACKEND DELETE SINGLE] Emitting 'messageDeleted' to participant ${participantId} sockets.`);
+                socketIds.forEach(socketId => {
+                    io.to(socketId).emit('messageDeleted', messageId); // Send only the ID of the deleted message
+                });
+            }
+        }
+
+        res.status(200).json({ message: "Message deleted successfully.", deletedMessageId: messageId });
+
+    } catch (error) {
+        console.error("Error in deleteSingleMessage controller:", error.message);
+        res.status(500).json({ error: "Internal server error" });
+    }
+};
+
+// --- NEW: Controller for Editing a Single Message ---
+export const editSingleMessage = async (req, res) => {
+    try {
+        const { id: messageId } = req.params; // The ID is the message's _id
+        const { text: newText } = req.body;  // The new text for the message
+        const userId = req.user._id;         // Authenticated user's ID
+
+        console.log(`[BACKEND EDIT SINGLE] Attempting to edit message ${messageId} by user ${userId} with new text: "${newText}"`);
+
+        // Validation: Ensure text is not empty unless there's an attachment
+        const message = await Message.findById(messageId); // Fetch message first to check attachments
+        if (!message) {
+            console.log(`[BACKEND EDIT SINGLE] Message ${messageId} not found.`);
+            return res.status(404).json({ message: "Message not found." });
+        }
+
+        if ((!newText || newText.trim() === "") && (!message.image && !message.fileUrl)) {
+            return res.status(400).json({ message: "Message text cannot be empty if it has no attachments." });
+        }
+        
+        // Authorization: Only allow the sender of the message to edit it
+        if (message.senderId.toString() !== userId.toString()) {
+            console.warn(`[BACKEND EDIT SINGLE] User ${userId} tried to edit message ${messageId} which belongs to ${message.senderId}. Access denied.`);
+            return res.status(403).json({ message: "You are not authorized to edit this message." });
+        }
+
+        // Update the message text and set 'edited' flag
+        message.text = newText.trim();
+        message.edited = true; // Set edited flag to true (ensure this field exists in your Message model)
+        await message.save();
+        console.log(`[BACKEND EDIT SINGLE] Successfully edited message ${messageId}.`);
+
+        // Update lastMessage in conversation if the edited message was the last one
+        const conversation = await Conversation.findById(message.conversationId);
+        if (conversation) { // Ensure conversation exists
+             // Check if the edited message is the current last message in the conversation's 'messages' array
+            if (conversation.messages.length > 0 && conversation.messages[conversation.messages.length - 1].toString() === messageId) {
+                conversation.lastMessage = message.text; // Update lastMessage content with new text
+                await conversation.save();
+                console.log(`[BACKEND EDIT SINGLE] Updated lastMessage in conversation ${conversation._id}.`);
+            }
+        }
+
+
+        // Real-time update: Emit the updated message document to all participants
+        const participants = conversation ? conversation.participants : [message.senderId, message.receiverId];
+        for (const participantId of participants) {
+            const socketIds = userSocketMap[participantId.toString()];
+            if (socketIds && socketIds.length > 0) {
+                console.log(`[BACKEND EDIT SINGLE] Emitting 'messageEdited' to participant ${participantId} sockets.`);
+                io.to(socketId).emit('messageEdited', message); // Emit the full updated message document
+            }
+        }
+
+        res.status(200).json(message); // Send back the updated message document
+
+    } catch (error) {
+        console.error("Error in editSingleMessage controller:", error.message);
+        res.status(500).json({ error: "Internal server error" });
     }
 };
