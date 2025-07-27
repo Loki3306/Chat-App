@@ -3,6 +3,8 @@
 @tailwind components;
 @tailwind utilities;
 
+
+
 /* Base variables - these are the default if no theme class is applied */
 :root {
   --bg-color: #1e293b; /* slate-800 */
@@ -190,4 +192,42 @@ a:hover {
 .card-bg {
   background-color: var(--bg-color-alt);
   color: var(--text-color);
+}
+
+/* In your global CSS file (e.g., src/index.css or src/App.css) */
+
+html, body {
+  height: 100%; /* Makes html and body take 100% of viewport height */
+  margin: 0;
+  padding: 0;
+  /* DO NOT add overflow: hidden here unless you explicitly want to disable ALL page scrolling */
+}
+
+#root { /* Or whatever ID your main app div has */
+  height: 100%; /* Makes your React app container take 100% of body height */
+  display: flex; /* Often helpful for main app layout */
+  flex-direction: column; /* If your app stacks content vertically */
+  /* DO NOT add overflow: hidden here either */
+}
+
+/* Keep your custom-scrollbar styles, as they are good for visual appearance */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #1a202c;
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #4a5568;
+  border-radius: 10px;
+  border: 2px solid #1a202c;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #636b77;
+}
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #4a5568 #1a202c;
 }

@@ -21,7 +21,7 @@ const Sidebar = ({ users, selectedUser, setSelectedUser }) => {
 
   return (
     // The main container for the sidebar, filling its parent's height
-    <div className="w-full min-h-[calc(100vh-64px)] p-4 space-y-6 bg-gray-800/40 border-r border-gray-700/50 rounded-lg shadow-lg flex flex-col justify-between text-gray-300">
+    <div className="w-full min-h-[calc(80vh-64px)]   p-4 space-y-6 bg-gray-800/40 border-r border-gray-700/50 rounded-lg shadow-lg flex flex-col justify-between text-gray-300">
       <div> {/* Container for top section: user profile and chat list */}
         {/* Actual User Profile Display */}
         <div className="flex items-center space-x-3 rounded-md p-2 mb-6">

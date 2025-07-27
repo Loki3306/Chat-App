@@ -15,7 +15,6 @@ import './index.css';
 import {ThemeProvider} from './context/ThemeContext.jsx'; 
 
 const App = () => {
-
   const { authUser, isCheckingAuth, checkAuth, toast, clearToast } = useAuthStore();
   const [isToastVisible, setIsToastVisible] = useState(false);
 
@@ -23,21 +22,17 @@ const App = () => {
     checkAuth();
   }, [checkAuth]);
 
- 
   useEffect(() => {
     if (toast.message) {
       setIsToastVisible(true);
       const timer = setTimeout(() => {
         setIsToastVisible(false);
-        
         setTimeout(() => clearToast(), 500);
       }, 4000); // 4 seconds visible
       return () => clearTimeout(timer);
     }
   }, [toast, clearToast]);
 
-
-  
   if (isCheckingAuth) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-900">
@@ -47,9 +42,9 @@ const App = () => {
   }
 
   return (
-    
     <ThemeProvider>
-      <div className="bg-gray-900 min-h-screen ">
+      {/* THIS IS THE MAIN CHANGE: Make this div a flex column that takes full screen height */}
+      <div className="flex flex-col h-screen bg-gray-900"> {/* Changed min-h-screen to h-screen and added flex flex-col */}
 
         <Toast
           message={toast.message}
@@ -58,8 +53,11 @@ const App = () => {
           show={isToastVisible}
         />
 
-        <Navbar />
-        <main className="p-6">
+        <Navbar /> {/* Navbar will take its natural height */}
+
+        {/* This main area should now take all remaining vertical space */}
+        {/* We also keep p-6 for overall padding around content, and add overflow-auto in case routes render very tall content */}
+        <main className="flex-1 p-6 overflow-auto"> {/* flex-1 makes it grow, overflow-auto handles its own content overflow */}
           <Routes>
             <Route path='/' element={authUser ? <Navigate to='/home' /> : <Navigate to='/login' />} />
             <Route path="/home" element={authUser ? <HomePage /> : <Navigate to='/login' />} />

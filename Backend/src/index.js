@@ -10,9 +10,11 @@ import userRoutes from './routes/user.route.js';
 import { connectDB } from './lib/db.js';
 import { protectRoute } from './middleware/auth.protectRoute.js'; // <--- ADD THIS LINE! Assuming path is correct
 
+import {app, server} from './lib/socket.js'; // <--- MODIFY THIS LINE: Import from socket.js
+
 dotenv.config();
 
-const app=express();
+
 
 const PORT=process.env.PORT;
 
@@ -29,7 +31,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/users", protectRoute, userRoutes); // <--- MODIFY THIS LINE: Add protectRoute middleware
 
-app.listen(PORT,()=>{
+server.listen(PORT,()=>{
     console.log('Server is running on PORT:',PORT);
     connectDB();
 });
