@@ -166,7 +166,7 @@ const SignUpPage = () => {
           navigate('/home');
       }, 2000);
     } catch (err) {
-      const errorMessage = err.response?.data?.error || "Sign-up failed. Please try again.";
+      const errorMessage = err.response?.data?.message || "Sign-up failed. Please try again.";
       setErrors(prev => ({...prev, password: errorMessage}));
       console.error("Signup error:", err);
     }
@@ -276,7 +276,7 @@ const SignUpPage = () => {
                         value={formData.email} 
                         className={`w-full py-3 bg-gray-800/60 border rounded-lg focus:outline-none focus:ring-1 focus:shadow-[0_0_15px_rgba(252,211,77,0.1)] hover:border-gray-600 transition-all ${errors.email ? 'border-red-500/50 focus:ring-red-500/80 focus:border-red-500' : 'border-gray-700 focus:ring-amber-400/80 focus:border-amber-400'}`} 
                         placeholder="you@example.com" 
-                        style={{paddingLeft: '2rem', paddingRight: '0.75rem'}} /* Adjusted paddingLeft */
+                        style={{paddingLeft: '2.75rem', paddingRight: '0.75rem'}} // Standardized padding
                       />
                   </div>
                     <InputError message={errors.email} />
@@ -294,7 +294,7 @@ const SignUpPage = () => {
                         value={formData.fullName} 
                         className={`w-full py-3 bg-gray-800/60 border rounded-lg focus:outline-none focus:ring-1 focus:shadow-[0_0_15px_rgba(252,211,77,0.1)] hover:border-gray-600 transition-all ${errors.fullName ? 'border-red-500/50 focus:ring-red-500/80 focus:border-red-500' : 'border-gray-700 focus:ring-amber-400/80 focus:border-amber-400'}`} 
                         placeholder="e.g., Jane Doe" 
-                        style={{paddingLeft: '2rem', paddingRight: '0.75rem'}} /* Adjusted paddingLeft */
+                        style={{paddingLeft: '2.75rem', paddingRight: '0.75rem'}} // Standardized padding
                       />
                     </div>
                     <InputError message={errors.fullName} />
@@ -312,7 +312,7 @@ const SignUpPage = () => {
                         value={formData.password} 
                         className={`w-full py-3 bg-gray-800/60 border rounded-lg focus:outline-none focus:ring-1 focus:shadow-[0_0_15px_rgba(252,211,77,0.1)] hover:border-gray-600 transition-all ${errors.password ? 'border-red-500/50 focus:ring-red-500/80 focus:border-red-500' : 'border-gray-700 focus:ring-amber-400/80 focus:border-amber-400'}`} 
                         placeholder="••••••••" 
-                        style={{paddingLeft: '2rem', paddingRight: '3rem'}} /* Adjusted paddingLeft */
+                        style={{paddingLeft: '2.75rem', paddingRight: '3rem'}} // Standardized padding
                       />
                       <button 
                         type="button" 

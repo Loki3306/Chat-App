@@ -1,11 +1,9 @@
 import { create } from 'zustand';
 import { axiosInstance } from '../lib/axios.js';
-// Removed direct import of useAuthStore to prevent circular dependency
-// Use dynamic import instead when accessing useAuthStore.getState().setToast()
 
 export const useChatStore = create((set, get) => ({
     messages: [],
-    users: [], // Ensure this is initialized as an empty array
+    users: [],
     selectedUser: null,
     selectedChat: null,
     isUsersLoading: false,
@@ -76,7 +74,7 @@ export const useChatStore = create((set, get) => ({
                 messages: [...state.messages, sentMessage],
                 users: state.users.map(user => {
                     if (state.selectedUser && user._id === state.selectedUser._id) {
-                        return { ...user, lastMessage: sentMessage.text || sentMessage.image || sentMessage.fileUrl };
+                        return { ...user, lastMessage: sentMessage.text || sentMessage.image || sentMessage.fileUrl, lastMessageSender: sentMessage.senderId };
                     }
                     return user;
                 })
@@ -154,14 +152,19 @@ export const useChatStore = create((set, get) => ({
 
                 let newLastMessageContent = null;
                 let newLastMessageSender = null;
-                const conversationMessages = updatedMessagesList.filter(msg => msg.conversationId === state.selectedUser?.conversationId);
-                if (conversationMessages.length > 0) {
-                    const lastMsg = conversationMessages[conversationMessages.length - 1];
-                    newLastMessageContent = lastMsg.text || lastMsg.image || lastMsg.fileUrl || "";
-                    newLastMessageSender = lastMsg.senderId;
+                
+                const currentConversationId = state.selectedUser?.conversationId; 
+
+                if (state.selectedUser && currentConversationId) {
+                    const messagesForCurrentConversation = updatedMessagesList.filter(msg => msg.conversationId === currentConversationId);
+                    if (messagesForCurrentConversation.length > 0) {
+                        const lastMsg = messagesForCurrentConversation[messagesForCurrentConversation.length - 1];
+                        newLastMessageContent = lastMsg.text || lastMsg.image || lastMsg.fileUrl || "";
+                        newLastMessageSender = lastMsg.senderId;
+                    }
                 }
 
-                const updatedUsers = state.users.map(user => {
+                const updatedUsers = (state.users || []).map(user => {
                     if (state.selectedUser && user._id === state.selectedUser._id) {
                         return { ...user, lastMessage: newLastMessageContent, lastMessageSender: newLastMessageSender };
                     }
@@ -184,7 +187,34 @@ export const useChatStore = create((set, get) => ({
         }
     },
 
-    // --- Action to remove a message (triggered by Socket.IO 'messageDeleted' event) ---
+    // NEW: Action to add a new message (triggered by Socket.IO 'newMessage' event)
+    addMessage: (newMessage) => {
+        set((state) => {
+            // Only add the message if it belongs to the currently selected chat
+            if (state.selectedUser && 
+                (newMessage.senderId === state.selectedUser._id || newMessage.receiverId === state.selectedUser._id)) {
+                
+                const updatedMessages = [...state.messages, newMessage];
+
+                // Update lastMessage and lastMessageSender in the users array
+                const updatedUsers = state.users.map(user => {
+                    if (user._id === newMessage.senderId || user._id === newMessage.receiverId) {
+                        return { 
+                            ...user, 
+                            lastMessage: newMessage.text || (newMessage.image ? "Image" : (newMessage.fileUrl ? `File: ${newMessage.fileName || 'file'}` : "")),
+                            lastMessageSender: newMessage.senderId
+                        };
+                    }
+                    return user;
+                });
+
+                return { messages: updatedMessages, users: updatedUsers };
+            }
+            return state; // No change if message not for current chat
+        });
+    },
+
+    // Action to remove a message (triggered by Socket.IO 'messageDeleted' event)
     removeMessage: (deletedMessageId) => {
         set((state) => {
             const updatedMessages = state.messages.filter(msg => msg._id !== deletedMessageId);
@@ -192,7 +222,6 @@ export const useChatStore = create((set, get) => ({
             let newLastMessageContent = null;
             let newLastMessageSender = null;
             
-            // Safely access state.selectedUser.conversationId
             const currentConversationId = state.selectedUser?.conversationId; 
             
             if (state.selectedUser && currentConversationId) {
@@ -204,8 +233,7 @@ export const useChatStore = create((set, get) => ({
                  }
             }
 
-            // Corrected: Ensure state.users is an array before mapping
-            const updatedUsers = (state.users || []).map(user => { // <-- FIX HERE (line 242 was here before)
+            const updatedUsers = (state.users || []).map(user => {
                 if (state.selectedUser && user._id === state.selectedUser._id) {
                     return { ...user, lastMessage: newLastMessageContent, lastMessageSender: newLastMessageSender };
                 }
@@ -216,7 +244,7 @@ export const useChatStore = create((set, get) => ({
         });
     },
 
-    // --- Action to update a message (triggered by Socket.IO 'messageEdited' event) ---
+    // Action to update a message (triggered by Socket.IO 'messageEdited' event)
     updateMessage: (updatedMessage) => {
         set((state) => {
             const updatedMessagesList = state.messages.map(msg =>
@@ -226,7 +254,6 @@ export const useChatStore = create((set, get) => ({
             let newLastMessageContent = null;
             let newLastMessageSender = null;
             
-            // Safely access state.selectedUser.conversationId
             const currentConversationId = state.selectedUser?.conversationId; 
 
             if (state.selectedUser && currentConversationId) {
@@ -238,8 +265,7 @@ export const useChatStore = create((set, get) => ({
                 }
             }
 
-            // Corrected: Ensure state.users is an array before mapping
-            const updatedUsers = (state.users || []).map(user => { // <-- FIX HERE
+            const updatedUsers = (state.users || []).map(user => {
                 if (state.selectedUser && user._id === state.selectedUser._id) {
                     return { ...user, lastMessage: newLastMessageContent, lastMessageSender: newLastMessageSender };
                 }
@@ -252,9 +278,8 @@ export const useChatStore = create((set, get) => ({
 
     setOnlineUsers: (onlineUsersList) => {
         set({ onlineUsers: onlineUsersList });
-        // Corrected: Ensure state.users is an array before mapping (Line 241/242 was here)
         set((state) => ({
-            users: (state.users || []).map(user => ({ // <-- FIX HERE
+            users: (state.users || []).map(user => ({
                 ...user,
                 isOnline: onlineUsersList.includes(user._id)
             }))

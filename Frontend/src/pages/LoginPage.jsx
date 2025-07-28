@@ -1,9 +1,8 @@
 import React from 'react';
 import { useAuthStore } from '../store/useAuthStore.js';
 import { Link, useNavigate } from 'react-router-dom';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { axiosInstance } from '../lib/axios.js';
-import { useState } from 'react';
 import { MessageSquare, Eye, EyeOff, User, Mail, KeyRound, Users, Settings, Code, PenTool, Heart, Compass, Shield, AlertTriangle, CheckCircle } from 'lucide-react';
 
 // --- Reusable Components (These can be moved to their own files) ---
@@ -275,7 +274,7 @@ const LoginPage = () => {
                                             value={formData.email}
                                             className={`w-full py-3 bg-gray-800/60 border rounded-lg focus:outline-none focus:ring-1 focus:shadow-[0_0_15px_rgba(252,211,77,0.1)] hover:border-gray-600 transition-all ${errors.email ? 'border-red-500/50 focus:ring-red-500/80 focus:border-red-500' : 'border-gray-700 focus:ring-amber-400/80 focus:border-amber-400'}`}
                                             placeholder="you@example.com"
-                                            style={{ paddingLeft: '2.75rem', paddingRight: '0.75rem', textIndent: '0' }}
+                                            style={{ paddingLeft: '2.75rem', paddingRight: '0.75rem' }} // Standardized padding
                                         />
                                     </div>
                                     <InputError message={errors.email} />
@@ -294,7 +293,7 @@ const LoginPage = () => {
                                             value={formData.password}
                                             className={`w-full py-3 bg-gray-800/60 border rounded-lg focus:outline-none focus:ring-1 focus:shadow-[0_0_15px_rgba(252,211,77,0.1)] hover:border-gray-600 transition-all ${errors.password || loginError ? 'border-red-500/50 focus:ring-red-500/80 focus:border-red-500' : 'border-gray-700 focus:ring-amber-400/80 focus:border-amber-400'}`}
                                             placeholder="••••••••"
-                                            style={{ paddingLeft: '2.75rem', paddingRight: '3rem', textIndent: '0' }}
+                                            style={{ paddingLeft: '2.75rem', paddingRight: '3rem' }} // Standardized padding
                                         />
                                         <button
                                             type="button"
