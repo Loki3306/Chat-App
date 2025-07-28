@@ -1,11 +1,12 @@
 import { create } from 'zustand';
 import { axiosInstance } from '../lib/axios.js';
+import { useAuthStore } from './useAuthStore.js'; // Import useAuthStore for authUser and toast messages
 
 export const useChatStore = create((set, get) => ({
     messages: [],
     users: [],
     selectedUser: null,
-    selectedChat: null,
+    selectedChat: null, // This can probably be removed if not used, it mirrors selectedUser
     isUsersLoading: false,
     isMessagesLoading: false,
     isSendingMessage: false,
@@ -27,12 +28,20 @@ export const useChatStore = create((set, get) => ({
 
             set({ users: usersWithOnlineStatus, isUsersLoading: false });
 
+            const currentSelectedUser = get().selectedUser;
+            if (currentSelectedUser) {
+                const updatedSelectedUser = usersWithOnlineStatus.find(u => u._id === currentSelectedUser._id);
+                if (updatedSelectedUser) {
+                    set({ selectedUser: updatedSelectedUser, selectedChat: updatedSelectedUser });
+                } else {
+                    useAuthStore.getState().setToast({ message: "Current conversation was deleted.", type: 'info' });
+                    set({ selectedUser: null, selectedChat: null, messages: [] });
+                }
+            }
+
         } catch (error) {
             console.error('useChatStore: Error fetching users:', error);
-            // Dynamic import for useAuthStore
-            import('./useAuthStore.js').then(module => {
-                module.useAuthStore.getState().setToast({ message: "Failed to fetch users.", type: 'error' });
-            });
+            useAuthStore.getState().setToast({ message: "Failed to fetch users.", type: 'error' });
             set({ isUsersLoading: false });
         }
     },
@@ -44,16 +53,15 @@ export const useChatStore = create((set, get) => ({
             set({ messages: response.data, isMessagesLoading: false });
         } catch (error) {
             console.error('Error fetching messages:', error);
-            import('./useAuthStore.js').then(module => {
-                module.useAuthStore.getState().setToast({ message: "Failed to fetch messages.", type: 'error' });
-            });
+            useAuthStore.getState().setToast({ message: "Failed to fetch messages.", type: 'error' });
             set({ isMessagesLoading: false });
         }
     },
 
     sendMessage: async (userId, text, file = null) => {
         set({ isSendingMessage: true });
-        const { selectedUser } = get();
+        // The selectedUser variable can be accessed using get().selectedUser if needed,
+        // but for send, userId is passed directly.
 
         try {
             const formData = new FormData();
@@ -73,8 +81,12 @@ export const useChatStore = create((set, get) => ({
             set((state) => ({
                 messages: [...state.messages, sentMessage],
                 users: state.users.map(user => {
-                    if (state.selectedUser && user._id === state.selectedUser._id) {
-                        return { ...user, lastMessage: sentMessage.text || sentMessage.image || sentMessage.fileUrl, lastMessageSender: sentMessage.senderId };
+                    if (user.conversationId === sentMessage.conversationId) {
+                         return { 
+                            ...user, 
+                            lastMessage: sentMessage.text || (sentMessage.image ? "Image" : (sentMessage.fileUrl ? `File: ${sentMessage.fileName}` : "")),
+                            lastMessageSender: sentMessage.senderId
+                        };
                     }
                     return user;
                 })
@@ -82,9 +94,7 @@ export const useChatStore = create((set, get) => ({
 
         } catch (error) {
             console.error('Error sending message:', error);
-            import('./useAuthStore.js').then(module => {
-                module.useAuthStore.getState().setToast({ message: "Failed to send message.", type: 'error' });
-            });
+            useAuthStore.getState().setToast({ message: "Failed to send message.", type: 'error' });
         } finally {
             set({ isSendingMessage: false });
         }
@@ -108,15 +118,22 @@ export const useChatStore = create((set, get) => ({
                 
                 let newLastMessageContent = null;
                 let newLastMessageSender = null;
-                const conversationMessages = updatedMessages.filter(msg => msg.conversationId === state.selectedUser?.conversationId);
-                if (conversationMessages.length > 0) {
-                    const lastMsg = conversationMessages[conversationMessages.length - 1];
-                    newLastMessageContent = lastMsg.text || lastMsg.image || lastMsg.fileUrl || "";
-                    newLastMessageSender = lastMsg.senderId;
+                const currentConversationId = response.data.conversationId || state.messages.find(msg => msg._id === messageId)?.conversationId; 
+
+                if (currentConversationId) {
+                    const messagesForCurrentConversation = updatedMessages.filter(msg => msg.conversationId === currentConversationId);
+                    if (messagesForCurrentConversation.length > 0) {
+                        const lastMsg = messagesForCurrentConversation[messagesForCurrentConversation.length - 1];
+                        newLastMessageContent = lastMsg.text || lastMsg.image || lastMsg.fileUrl || "";
+                        newLastMessageSender = lastMsg.senderId;
+                    } else {
+                        newLastMessageContent = null;
+                        newLastMessageSender = null;
+                    }
                 }
 
                 const updatedUsers = state.users.map(user => {
-                    if (state.selectedUser && user._id === state.selectedUser._id) {
+                    if (user.conversationId === currentConversationId) {
                         return { ...user, lastMessage: newLastMessageContent, lastMessageSender: newLastMessageSender };
                     }
                     return user;
@@ -124,15 +141,11 @@ export const useChatStore = create((set, get) => ({
 
                 return { messages: updatedMessages, users: updatedUsers };
             });
-            import('./useAuthStore.js').then(module => {
-                module.useAuthStore.getState().setToast({ message: "Message deleted!", type: 'success' });
-            });
+            useAuthStore.getState().setToast({ message: "Message deleted!", type: 'success' });
 
         } catch (error) {
             console.error('Error deleting message:', error);
-            import('./useAuthStore.js').then(module => {
-                module.useAuthStore.getState().setToast({ message: "Failed to delete message.", type: 'error' });
-            });
+            useAuthStore.getState().setToast({ message: "Failed to delete message.", type: 'error' });
             get().getMessages(get().selectedUser._id);
         } finally {
             set({ isMessagesLoading: false });
@@ -147,15 +160,15 @@ export const useChatStore = create((set, get) => ({
 
             set((state) => {
                 const updatedMessagesList = state.messages.map(msg =>
-                    msg._id === messageId ? updatedMessage : msg
+                    msg._id === updatedMessage._id ? updatedMessage : msg
                 );
 
                 let newLastMessageContent = null;
                 let newLastMessageSender = null;
                 
-                const currentConversationId = state.selectedUser?.conversationId; 
+                const currentConversationId = updatedMessage.conversationId; 
 
-                if (state.selectedUser && currentConversationId) {
+                if (currentConversationId) {
                     const messagesForCurrentConversation = updatedMessagesList.filter(msg => msg.conversationId === currentConversationId);
                     if (messagesForCurrentConversation.length > 0) {
                         const lastMsg = messagesForCurrentConversation[messagesForCurrentConversation.length - 1];
@@ -165,7 +178,7 @@ export const useChatStore = create((set, get) => ({
                 }
 
                 const updatedUsers = (state.users || []).map(user => {
-                    if (state.selectedUser && user._id === state.selectedUser._id) {
+                    if (user.conversationId === currentConversationId) {
                         return { ...user, lastMessage: newLastMessageContent, lastMessageSender: newLastMessageSender };
                     }
                     return user;
@@ -173,32 +186,34 @@ export const useChatStore = create((set, get) => ({
 
                 return { messages: updatedMessagesList, users: updatedUsers };
             });
-            import('./useAuthStore.js').then(module => {
-                module.useAuthStore.getState().setToast({ message: "Message edited!", type: 'success' });
-            });
+            useAuthStore.getState().setToast({ message: "Message edited!", type: 'success' });
 
         } catch (error) {
             console.error('Error editing message:', error);
-            import('./useAuthStore.js').then(module => {
-                module.useAuthStore.getState().setToast({ message: "Failed to edit message.", type: 'error' });
-            });
+            useAuthStore.getState().setToast({ message: "Failed to edit message.", type: 'error' });
         } finally {
             set({ isMessagesLoading: false });
         }
     },
 
-    // NEW: Action to add a new message (triggered by Socket.IO 'newMessage' event)
+    // Action to add a new message (triggered by Socket.IO 'newMessage' event)
     addMessage: (newMessage) => {
         set((state) => {
+            const authUser = useAuthStore.getState().authUser; // Get current auth user
+            // Prevent adding if message with same ID already exists OR if it's our own message
+            if (state.messages.some(msg => msg._id === newMessage._id) || newMessage.senderId === authUser?._id) {
+                console.log(`[Socket.IO] Ignoring duplicate or self-sent message: ${newMessage._id}`);
+                return state; // Return current state, no change
+            }
+
             // Only add the message if it belongs to the currently selected chat
             if (state.selectedUser && 
                 (newMessage.senderId === state.selectedUser._id || newMessage.receiverId === state.selectedUser._id)) {
                 
                 const updatedMessages = [...state.messages, newMessage];
 
-                // Update lastMessage and lastMessageSender in the users array
                 const updatedUsers = state.users.map(user => {
-                    if (user._id === newMessage.senderId || user._id === newMessage.receiverId) {
+                    if (user.conversationId === newMessage.conversationId) {
                         return { 
                             ...user, 
                             lastMessage: newMessage.text || (newMessage.image ? "Image" : (newMessage.fileUrl ? `File: ${newMessage.fileName || 'file'}` : "")),
@@ -210,7 +225,7 @@ export const useChatStore = create((set, get) => ({
 
                 return { messages: updatedMessages, users: updatedUsers };
             }
-            return state; // No change if message not for current chat
+            return state;
         });
     },
 
@@ -222,19 +237,23 @@ export const useChatStore = create((set, get) => ({
             let newLastMessageContent = null;
             let newLastMessageSender = null;
             
-            const currentConversationId = state.selectedUser?.conversationId; 
+            const deletedMessage = state.messages.find(msg => msg._id === deletedMessageId);
+            const currentConversationId = deletedMessage?.conversationId; 
             
-            if (state.selectedUser && currentConversationId) {
+            if (currentConversationId) {
                  const messagesForCurrentConversation = updatedMessages.filter(msg => msg.conversationId === currentConversationId);
                  if (messagesForCurrentConversation.length > 0) {
                      const lastMsg = messagesForCurrentConversation[messagesForCurrentConversation.length - 1];
                      newLastMessageContent = lastMsg.text || lastMsg.image || lastMsg.fileUrl || "";
                      newLastMessageSender = lastMsg.senderId;
+                 } else {
+                     newLastMessageContent = null;
+                     newLastMessageSender = null;
                  }
             }
 
             const updatedUsers = (state.users || []).map(user => {
-                if (state.selectedUser && user._id === state.selectedUser._id) {
+                if (user.conversationId === currentConversationId) {
                     return { ...user, lastMessage: newLastMessageContent, lastMessageSender: newLastMessageSender };
                 }
                 return user;
@@ -247,6 +266,13 @@ export const useChatStore = create((set, get) => ({
     // Action to update a message (triggered by Socket.IO 'messageEdited' event)
     updateMessage: (updatedMessage) => {
         set((state) => {
+            const authUser = useAuthStore.getState().authUser; // Get current auth user
+            // Prevent processing if it's our own message being echoed back
+            if (updatedMessage.senderId === authUser?._id) {
+                console.log(`[Socket.IO] Ignoring self-edited message echo: ${updatedMessage._id}`);
+                return state; // Return current state, no change
+            }
+
             const updatedMessagesList = state.messages.map(msg =>
                 msg._id === updatedMessage._id ? updatedMessage : msg
             );
@@ -254,9 +280,9 @@ export const useChatStore = create((set, get) => ({
             let newLastMessageContent = null;
             let newLastMessageSender = null;
             
-            const currentConversationId = state.selectedUser?.conversationId; 
+            const currentConversationId = updatedMessage.conversationId; 
 
-            if (state.selectedUser && currentConversationId) {
+            if (currentConversationId) {
                 const messagesForCurrentConversation = updatedMessagesList.filter(msg => msg.conversationId === currentConversationId);
                 if (messagesForCurrentConversation.length > 0) {
                     const lastMsg = messagesForCurrentConversation[messagesForCurrentConversation.length - 1];
@@ -266,7 +292,7 @@ export const useChatStore = create((set, get) => ({
             }
 
             const updatedUsers = (state.users || []).map(user => {
-                if (state.selectedUser && user._id === state.selectedUser._id) {
+                if (user.conversationId === currentConversationId) {
                     return { ...user, lastMessage: newLastMessageContent, lastMessageSender: newLastMessageSender };
                 }
                 return user;
@@ -284,5 +310,41 @@ export const useChatStore = create((set, get) => ({
                 isOnline: onlineUsersList.includes(user._id)
             }))
         }));
+    },
+
+    deleteConversationForAll: async (conversationId) => {
+        set({ isMessagesLoading: true });
+        try {
+            const response = await axiosInstance.delete(`/messages/conversation/${conversationId}`);
+            console.log("[FRONTEND STORE] Delete conversation API response:", response.data);
+
+            useAuthStore.getState().setToast({ message: response.data.message, type: 'success' });
+            
+            // The Socket.IO event 'conversationDeleted' from the backend will
+            // trigger the removeConversation action to update the UI globally.
+
+        } catch (error) {
+            console.error('Error deleting conversation:', error);
+            const errorMessage = error.response?.data?.message || "Failed to delete conversation.";
+            useAuthStore.getState().setToast({ message: errorMessage, type: 'error' });
+        } finally {
+            set({ isMessagesLoading: false });
+        }
+    },
+
+    removeConversation: (deletedConversationId) => {
+        set((state) => {
+            const updatedUsers = state.users.filter(user => user.conversationId !== deletedConversationId);
+
+            if (state.selectedUser?.conversationId === deletedConversationId) {
+                return {
+                    users: updatedUsers,
+                    messages: [],
+                    selectedUser: null,
+                    selectedChat: null
+                };
+            }
+            return { users: updatedUsers };
+        });
     },
 }));

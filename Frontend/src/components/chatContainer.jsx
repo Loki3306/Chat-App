@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useChatStore } from '../store/useChatStore.js';
 import { useAuthStore } from '../store/useAuthStore.js';
 import MessageInput from './MessageInput';
-import ChatMessage from './ChatMessage.jsx'; // <-- Import ChatMessage component
+import ChatMessage from './ChatMessage.jsx';
 import {
     MoreVertical,
     XCircle,
@@ -12,20 +12,22 @@ import {
     MessageSquare,
     Palette,
     X,
+    Trash2,
 } from 'lucide-react';
 import { emojiCategories } from '../components/emojiData.js';
-
+import { themes } from '../utils/themes.js';
 const ChatContainer = () => {
-    const { messages, getMessages, isMessageLoading, selectedUser, setSelectedUser } = useChatStore();
+    const { messages, getMessages, isMessageLoading, selectedUser, setSelectedUser, deleteConversationForAll } = useChatStore();
     const { authUser, setToast, clearToast } = useAuthStore();
 
     const [showThemeTab, setShowThemeTab] = useState(false);
     const [showEmojiTab, setShowEmojiTab] = useState(false);
     const [currentTheme, setCurrentTheme] = useState('amber');
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
     const messagesEndRef = useRef(null);
     const chatContainerRef = useRef(null);
-    const messagesContainerRef = useRef(null); // <-- Keep this ref here
+    const messagesContainerRef = useRef(null);
 
     const [mousePosition, setMousePosition] = useState({ x: '50%', y: '50%' });
     const animationFrameRef = useRef(0);
@@ -38,8 +40,8 @@ const ChatContainer = () => {
         amber: {
             name: 'Midnight Amber',
             primary: '#FFBF00',
-            accent: 'rgba(51, 51, 51, 0.05)',
-            secondary: 'rgba(26, 0, 51, 0.03)',
+            accent: 'rgba(51, 51, 51, 0.15)', // Increased opacity
+            secondary: 'rgba(26, 0, 51, 0.1)', // Increased opacity
             textColor: '#FCD34D',
             buttonBg: 'rgba(255, 191, 0, 0.2)',
             buttonHoverBg: 'rgba(255, 191, 0, 0.3)',
@@ -49,8 +51,8 @@ const ChatContainer = () => {
         blue: {
             name: 'Ocean Blue',
             primary: 'blue',
-            accent: 'rgba(59, 130, 246, 0.05)',
-            secondary: 'rgba(147, 51, 234, 0.03)',
+            accent: 'rgba(59, 130, 246, 0.15)', // Increased opacity
+            secondary: 'rgba(147, 51, 234, 0.1)', // Increased opacity
             textColor: 'rgb(147, 197, 253)',
             buttonBg: 'rgba(59, 130, 246, 0.2)',
             buttonHoverBg: 'rgba(59, 130, 246, 0.3)',
@@ -60,8 +62,8 @@ const ChatContainer = () => {
         emerald: {
             name: 'Forest Green',
             primary: 'emerald',
-            accent: 'rgba(16, 185, 129, 0.05)',
-            secondary: 'rgba(59, 130, 246, 0.03)',
+            accent: 'rgba(16, 185, 129, 0.15)', // Increased opacity
+            secondary: 'rgba(59, 130, 246, 0.1)', // Increased opacity
             textColor: 'rgb(110, 231, 183)',
             buttonBg: 'rgba(16, 185, 129, 0.2)',
             buttonHoverBg: 'rgba(16, 185, 129, 0.3)',
@@ -71,8 +73,8 @@ const ChatContainer = () => {
         purple: {
             name: 'Royal Purple',
             primary: 'violet',
-            accent: 'rgba(139, 92, 246, 0.05)',
-            secondary: 'rgba(236, 72, 153, 0.03)',
+            accent: 'rgba(139, 92, 246, 0.15)', // Increased opacity
+            secondary: 'rgba(236, 72, 153, 0.1)', // Increased opacity
             textColor: 'rgb(221, 214, 254)',
             buttonBg: 'rgba(139, 92, 246, 0.2)',
             buttonHoverBg: 'rgba(139, 92, 246, 0.3)',
@@ -82,8 +84,8 @@ const ChatContainer = () => {
         rose: {
             name: 'Rose Pink',
             primary: 'rose',
-            accent: 'rgba(244, 63, 94, 0.05)',
-            secondary: 'rgba(139, 92, 246, 0.03)',
+            accent: 'rgba(244, 63, 94, 0.15)', // Increased opacity
+            secondary: 'rgba(139, 92, 246, 0.1)', // Increased opacity
             textColor: 'rgb(254, 205, 211)',
             buttonBg: 'rgba(244, 63, 94, 0.2)',
             buttonHoverBg: 'rgba(244, 63, 94, 0.3)',
@@ -92,10 +94,10 @@ const ChatContainer = () => {
         }
     };
 
+    // MODIFIED: Changed fill color to a darker shade for better visibility
     const defaultUserAvatar = `data:image/svg+xml;base64,${btoa(`
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 5C13.66 5 15 6.34 15 8C15 9.66 13.66 11 12 11C10.34 11 9 9.66 9 8C9 6.34 10.34 5 12 5ZM12 19.2C9.5 19.2 7.29 17.92 6 15.96C6.03 14.07 10 12.9 12 12.9C13.99 12.9 17.97 14.07 18 15.96C16.71 17.92 14.5 19.2 12 19.2Z" fill="#9CA3AF"/>
-        </svg>
+            <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 5C13.66 5 15 6.34 15 8C15 9.66 13.66 11 12 11C10.34 11 9 9.66 9 8C9 6.34 10.34 5 12 5ZM12 19.2C9.5 19.2 7.29 17.92 6 15.96C6.03 14.07 10 12.9 12 12.9C13.99 12.9 17.97 14.07 18 15.96C16.71 17.92 14.5 19.2 12 19.2Z" fill="#1F2937"/> </svg>
     `)}`;
 
     const getThemeStyles = () => {
@@ -184,6 +186,20 @@ const ChatContainer = () => {
 
     const closeFullScreenImage = () => {
         setFullScreenImageUrl(null);
+    };
+
+    // Handle deleting conversation for both users
+    const handleDeleteConversation = () => {
+        setShowDeleteConfirm(true); // Show confirmation modal
+    };
+
+    const confirmDeleteConversation = async () => {
+        setShowDeleteConfirm(false); // Hide confirmation modal
+        if (selectedUser?.conversationId) {
+            await deleteConversationForAll(selectedUser.conversationId);
+        } else {
+            setToast({ message: "No conversation selected to delete.", type: 'error' });
+        }
     };
 
     if (!selectedUser) {
@@ -305,6 +321,30 @@ const ChatContainer = () => {
                 </div>
             )}
 
+            {/* Delete Confirmation Modal */}
+            {showDeleteConfirm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70 backdrop-blur-sm">
+                    <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 shadow-xl text-center max-w-sm mx-auto">
+                        <h3 className="text-lg font-semibold text-white mb-4">Delete Conversation?</h3>
+                        <p className="text-gray-300 mb-6">This action will permanently delete this conversation and all its messages for both users. This cannot be undone.</p>
+                        <div className="flex justify-center gap-4">
+                            <button
+                                onClick={() => setShowDeleteConfirm(false)}
+                                className="px-5 py-2 rounded-md text-gray-300 bg-gray-700 hover:bg-gray-600 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={confirmDeleteConversation}
+                                className="px-5 py-2 rounded-md text-white bg-red-600 hover:bg-red-700 transition-colors"
+                            >
+                                Delete for Both
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Chat Header - Fixed Height */}
             <div className="flex items-center justify-between p-4 border-b border-gray-700/50 bg-gray-800/60 rounded-t-lg backdrop-blur-sm flex-shrink-0">
                 <div className="flex items-center space-x-3">
@@ -324,6 +364,16 @@ const ChatContainer = () => {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
+                    {/* Delete Conversation Button */}
+                    <button
+                        onClick={handleDeleteConversation}
+                        className="p-2 rounded-full bg-red-500/20 text-red-400 hover:bg-red-500/30 hover:text-red-300 transition-all duration-200"
+                        aria-label="Delete Conversation"
+                        title="Delete Conversation"
+                    >
+                        <Trash2 size={18} />
+                    </button>
+
                     <button
                         onClick={handleThemeSettings}
                         className="p-2 rounded-full transition-all duration-200"
@@ -370,7 +420,7 @@ const ChatContainer = () => {
                                 defaultUserAvatar={defaultUserAvatar}
                                 themeStyles={themeStyles}
                                 openFullScreenImage={openFullScreenImage}
-                                messagesContainerRef={messagesContainerRef} // <-- Pass the ref here
+                                messagesContainerRef={messagesContainerRef}
                             />
                         );
                     })
@@ -398,4 +448,3 @@ const ChatContainer = () => {
 };
 
 export default ChatContainer;
-
